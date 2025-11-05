@@ -1,0 +1,11 @@
+node_modules/
+dist/
+output/
+.remotion/
+*.log
+.DS_Store
+*.mp4
+*.webm
+
+
+build

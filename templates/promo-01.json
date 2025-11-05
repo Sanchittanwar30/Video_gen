@@ -1,0 +1,85 @@
+{
+  "timeline": {
+    "duration": 300,
+    "fps": 30
+  },
+  "tracks": [
+    {
+      "type": "background",
+      "src": "{{backgroundImage}}",
+      "startFrame": 0,
+      "endFrame": 300,
+      "style": {
+        "objectFit": "cover"
+      }
+    },
+    {
+      "type": "text",
+      "content": "{{title}}",
+      "style": {
+        "fontSize": 72,
+        "fontFamily": "Arial, sans-serif",
+        "color": "#ffffff",
+        "fontWeight": "bold",
+        "textAlign": "center",
+        "x": 960,
+        "y": 300,
+        "width": 1200
+      },
+      "animation": {
+        "type": "fade-in",
+        "duration": 1.0,
+        "delay": 0.5
+      },
+      "startFrame": 30,
+      "endFrame": 150
+    },
+    {
+      "type": "text",
+      "content": "{{subtitle}}",
+      "style": {
+        "fontSize": 48,
+        "fontFamily": "Arial, sans-serif",
+        "color": "#ffffff",
+        "textAlign": "center",
+        "x": 960,
+        "y": 450,
+        "width": 1200
+      },
+      "animation": {
+        "type": "slide",
+        "duration": 1.0,
+        "delay": 1.0,
+        "from": "bottom"
+      },
+      "startFrame": 60,
+      "endFrame": 180
+    },
+    {
+      "type": "image",
+      "src": "{{logoImage}}",
+      "style": {
+        "x": 760,
+        "y": 700,
+        "width": 400,
+        "height": 200,
+        "objectFit": "contain"
+      },
+      "animation": {
+        "type": "fade-in",
+        "duration": 0.8,
+        "delay": 1.5
+      },
+      "startFrame": 90,
+      "endFrame": 270
+    },
+    {
+      "type": "voiceover",
+      "src": "{{voiceoverAudio}}",
+      "startFrame": 0,
+      "endFrame": 300,
+      "volume": 0.8
+    }
+  ]
+}
+

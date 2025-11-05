@@ -1,0 +1,44 @@
+{
+  "name": "remotion-video-generator",
+  "version": "1.0.0",
+  "description": "Dynamic video generation using Remotion v6+ with template-based rendering",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "remotion studio",
+    "build": "remotion bundle",
+    "render": "ts-node render/index.ts",
+    "render:low": "ts-node scripts/render-low-res.ts",
+    "preview": "ts-node scripts/preview.ts",
+    "typecheck": "tsc",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\""
+  },
+  "keywords": [
+    "remotion",
+    "video",
+    "generation",
+    "template"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "remotion": "^4.0.0"
+  },
+  "devDependencies": {
+    "@remotion/bundler": "^4.0.0",
+    "@remotion/cli": "^4.0.0",
+    "@remotion/renderer": "^4.0.0",
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "prettier": "^3.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}
+

@@ -1,6 +1,21 @@
 # Remotion Video Generator
 
-A dynamic video generation system built with Remotion v6+ that renders videos from JSON templates. This project serves as a rendering engine for programmatic video generation with support for backgrounds, text, images, audio, and animations.
+A production-ready, scalable video generation system built with Remotion v6+ that renders videos from JSON templates. Features a complete backend API, job queue system, cloud storage integration, and real-time notifications.
+
+## 🏗️ System Architecture
+
+```
+Client → Backend API → Job Queue (BullMQ/Redis) → Worker → Remotion Render → Cloud Storage → Notification
+```
+
+- **REST API**: Express.js backend for job management
+- **Job Queue**: BullMQ with Redis for scalable processing
+- **Workers**: Background workers for video rendering
+- **Storage**: Supabase (default, recommended) or local filesystem
+- **Notifications**: WebSocket for real-time updates + Webhook support
+- **Rendering**: Remotion-based template engine
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system documentation.
 
 ## Features
 
@@ -37,16 +52,63 @@ A dynamic video generation system built with Remotion v6+ that renders videos fr
 └── remotion.config.ts
 ```
 
-## Installation
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 20+
+- Redis (for job queue)
+- npm or yarn
+
+See [INSTALLATION.md](./INSTALLATION.md) for complete installation instructions.
+
+### Installation
 
 1. Install dependencies:
 ```bash
 npm install
 ```
 
-2. Build the project:
+2. Set up environment variables:
 ```bash
-npm run build
+cp env.example .env
+# Edit .env with your configuration
+```
+
+   See [ENV_SETUP.md](./ENV_SETUP.md) for detailed environment variable configuration guide.
+
+3. Start Redis:
+```bash
+# macOS
+brew install redis
+brew services start redis
+
+# Linux
+sudo apt-get install redis-server
+sudo systemctl start redis
+
+# Docker
+docker run -d -p 6379:6379 redis:7-alpine
+```
+
+4. Start the system:
+```bash
+# Terminal 1: Start API server
+npm run dev:api
+
+# Terminal 2: Start worker
+npm run dev:worker
+```
+
+5. Test the API:
+```bash
+curl http://localhost:3000/health
+```
+
+### Docker Deployment
+
+```bash
+docker-compose up -d
 ```
 
 ## Usage

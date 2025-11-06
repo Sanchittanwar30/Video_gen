@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build: .
+    command: npm run start:api
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - WEBSOCKET_PORT=3001
+    volumes:
+      - .:/app
+      - output:/app/output
+      - temp:/app/temp
+    depends_on:
+      - redis
+    env_file:
+      - .env
+
+  worker:
+    build: .
+    command: npm run start:worker
+    environment:
+      - NODE_ENV=development
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - .:/app
+      - output:/app/output
+      - temp:/app/temp
+    depends_on:
+      - redis
+      - api
+    env_file:
+      - .env
+
+volumes:
+  redis-data:
+  output:
+  temp:
+

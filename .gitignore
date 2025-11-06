@@ -1,11 +1,13 @@
 node_modules/
 dist/
 output/
+temp/
 .remotion/
 *.log
 .DS_Store
 *.mp4
 *.webm
 
-
 build
+.env
+.env.local

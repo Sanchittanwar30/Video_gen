@@ -16,7 +16,6 @@ export default function VideoForm({ onJobCreated }: VideoFormProps) {
     description: '',
     style: 'professional',
     duration: 10,
-    includeAudio: false,
     backgroundType: 'image',
     backgroundColor: '#667eea',
   });
@@ -194,17 +193,6 @@ export default function VideoForm({ onJobCreated }: VideoFormProps) {
           />
         </div>
       )}
-
-      <div className="form-group checkbox-group">
-        <label>
-          <input
-            type="checkbox"
-            checked={formData.includeAudio}
-            onChange={(e) => setFormData({ ...formData, includeAudio: e.target.checked })}
-          />
-          Include voiceover audio
-        </label>
-      </div>
 
       {error && <div className="error-message">{error}</div>}
 

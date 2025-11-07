@@ -7,7 +7,6 @@ export interface VideoRequirements {
   description?: string;
   style?: string;
   duration?: number;
-  includeAudio?: boolean;
   backgroundType?: 'image' | 'color' | 'gradient';
   backgroundColor?: string;
 }

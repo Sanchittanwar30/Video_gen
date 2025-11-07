@@ -1,7 +1,8 @@
 import {bundle} from '@remotion/bundler';
 import {renderMedia, selectComposition} from '@remotion/renderer';
-import {existsSync, readFileSync} from 'fs';
-import {join} from 'path';
+import axios from 'axios';
+import {existsSync, readFileSync, writeFileSync} from 'fs';
+import {join, dirname, extname} from 'path';
 
 /**
  * Interface for render options
@@ -57,6 +58,112 @@ function validatePlaceholders(
 	}
 }
 
+const createSvgDataUrl = (svg: string) => `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+
+const createBackgroundDataUrl = (from: string, to: string) =>
+  createSvgDataUrl(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"><defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${from}"/><stop offset="100%" stop-color="${to}"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#grad)"/></svg>`
+  );
+
+const createLogoDataUrl = (text: string) =>
+  createSvgDataUrl(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="100%" height="100%" fill="#ffffff"/><text x="50%" y="50%" font-family="Arial, sans-serif" font-size="48" fill="#1f2937" text-anchor="middle" dominant-baseline="middle">${text}</text></svg>`
+  );
+
+const DEFAULT_BACKGROUNDS: Record<string, string> = {
+  professional: createBackgroundDataUrl('#1f2937', '#0f172a'),
+  casual: createBackgroundDataUrl('#2563eb', '#1d4ed8'),
+  creative: createBackgroundDataUrl('#8b5cf6', '#7c3aed'),
+  minimalist: createBackgroundDataUrl('#111827', '#0f172a'),
+  default: createBackgroundDataUrl('#1f2937', '#0f172a'),
+};
+
+const FALLBACK_LOGO_DATA_URL = createLogoDataUrl('Your Logo');
+
+const isHttpUrl = (value: string) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
+const isDataUrl = (value: string) => value.startsWith('data:');
+
+const contentTypeToExtension = (contentType?: string) => {
+  if (!contentType) return '';
+  if (contentType.includes('image/png')) return '.png';
+  if (contentType.includes('image/jpeg')) return '.jpg';
+  if (contentType.includes('image/jpg')) return '.jpg';
+  if (contentType.includes('image/svg')) return '.svg';
+  if (contentType.includes('image/webp')) return '.webp';
+  if (contentType.includes('audio/mpeg')) return '.mp3';
+  if (contentType.includes('audio/mp4')) return '.m4a';
+  if (contentType.includes('audio/wav')) return '.wav';
+  return '';
+};
+
+const downloadAsset = async (url: string, targetDir: string, key: string): Promise<string> => {
+  const response = await axios.get<ArrayBuffer>(url, {
+    responseType: 'arraybuffer',
+    timeout: 20000,
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
+      Accept: '*/*',
+    },
+  });
+
+  let extension = extname(new URL(url).pathname);
+  if (extension.includes('?')) {
+    extension = extension.split('?')[0];
+  }
+  if (!extension || extension.length > 5) {
+    extension = contentTypeToExtension(response.headers['content-type']);
+  }
+  if (!extension) {
+    extension = '.bin';
+  }
+
+  const filename = `${key}-${Date.now()}${extension}`;
+  const filePath = join(targetDir, filename);
+  writeFileSync(filePath, Buffer.from(response.data));
+  return filePath;
+};
+
+const prepareInputAssets = async (input: Record<string, any>, jobDir: string) => {
+  const result: Record<string, any> = {...input};
+
+  await Promise.all(
+    Object.entries(result).map(async ([key, value]) => {
+      if (typeof value !== 'string') {
+        return;
+      }
+
+      if (isDataUrl(value)) {
+        return;
+      }
+
+      if (isHttpUrl(value)) {
+        try {
+          result[key] = await downloadAsset(value, jobDir, key.toLowerCase());
+        } catch (error) {
+          console.warn(`  Failed to download asset for ${key}: ${(error as Error).message}`);
+          const lowerKey = key.toLowerCase();
+          if (lowerKey.includes('logo')) {
+            result[key] = FALLBACK_LOGO_DATA_URL;
+          } else if (lowerKey.includes('background') || lowerKey.includes('image')) {
+            result[key] = DEFAULT_BACKGROUNDS.default;
+          }
+        }
+      }
+    })
+  );
+
+  return result;
+};
+
 /**
  * Renders a template to MP4 using Remotion
  */
@@ -108,6 +215,9 @@ export async function renderTemplateToMp4(
 	} catch (error) {
 		throw new Error(`Failed to parse input file: ${error}`);
 	}
+
+	const jobDir = dirname(templatePath);
+	input = await prepareInputAssets(input, jobDir);
 
 	// Filter out empty audio/image tracks BEFORE validation to avoid issues
 	// We need to remove these tracks early so they don't cause problems

@@ -136,6 +136,19 @@ TEMP_DIR=./temp
 WEBSOCKET_PORT=3001
 ```
 
+### FFmpeg Configuration (Optional / macOS workaround)
+
+```env
+FFMPEG_BINARY=/opt/homebrew/bin/ffmpeg
+FFPROBE_BINARY=/opt/homebrew/bin/ffprobe
+```
+
+**How to install (macOS Homebrew):**
+```bash
+brew install ffmpeg
+```
+Set the environment variables above to point to your system binaries and restart the API.
+
 ## Environment Examples
 
 ### Development (Local)

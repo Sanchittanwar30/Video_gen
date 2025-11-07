@@ -351,12 +351,11 @@ The render script validates:
   ```bash
   npm run render:low templates/promo-01-no-audio.json inputs/promo-01-input.json output/video.mp4
   ```
-- **Other Workarounds:**
-  1. **Manual low resolution**: `npm run render templates/promo-01-no-audio.json inputs/promo-01-input.json output/video.mp4 30 1280 720`
-  2. **Update Remotion**: `npm update @remotion/renderer @remotion/bundler @remotion/cli remotion`
-  3. **Use system FFmpeg**: Install via Homebrew (`brew install ffmpeg`) and set `FFMPEG_BINARY` environment variable
-  4. **Use Docker**: Run Remotion in a Docker container to avoid macOS-specific issues
-  5. **Remove voiceover track**: Edit template JSON and remove the voiceover track object entirely
+- **Primary Workarounds (in order):**
+  1. **Upgrade Remotion binaries:** `npm update @remotion/renderer @remotion/bundler @remotion/cli remotion`
+  2. **Use local audio instead of remote URLs:** download audio files and reference them via local paths
+  3. **Remove voiceover tracks entirely:** edit templates to omit `voiceover` tracks when audio isn’t needed
+  4. **Switch to system FFmpeg / Docker:** install FFmpeg via Homebrew and set `FFMPEG_BINARY`, or render inside Docker to bypass macOS FFmpeg issues
 
 **Video not rendering**
 - Verify all asset URLs are accessible (test URLs in browser first)

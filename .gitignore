@@ -9,5 +9,5 @@ temp/
 *.webm
 
 build
-.env
+
 .env.local

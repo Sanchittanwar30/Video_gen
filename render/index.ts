@@ -147,7 +147,8 @@ const prepareInputAssets = async (input: Record<string, any>, jobDir: string) =>
 
       if (isHttpUrl(value)) {
         try {
-          result[key] = await downloadAsset(value, jobDir, key.toLowerCase());
+          const localPath = await downloadAsset(value, jobDir, key.toLowerCase());
+          result[key] = `file://${localPath}`;
         } catch (error) {
           console.warn(`  Failed to download asset for ${key}: ${(error as Error).message}`);
           const lowerKey = key.toLowerCase();
@@ -333,6 +334,7 @@ export async function renderTemplateToMp4(
 		crf: 23,
 		videoBitrate: null,
 		audioBitrate: null,
+		omitAudio: true,
 		// Try to configure audio processing
 		...(hasAudioTracks ? {} : {
 			// Attempt to skip audio processing when no audio tracks

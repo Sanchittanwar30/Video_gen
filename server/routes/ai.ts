@@ -182,7 +182,7 @@ Requirements:
           type: 'background',
           src:
             backgroundType === 'image'
-              ? backgroundImageUrl
+              ? '{{backgroundImage}}'
               : backgroundType === 'gradient'
               ? `linear-gradient(135deg, ${backgroundColor} 0%, #764ba2 100%)`
               : backgroundColor,

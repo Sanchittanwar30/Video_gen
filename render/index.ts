@@ -1,8 +1,8 @@
 import {bundle} from '@remotion/bundler';
 import {renderMedia, selectComposition} from '@remotion/renderer';
 import axios from 'axios';
-import {existsSync, readFileSync, writeFileSync} from 'fs';
-import {join, dirname, extname} from 'path';
+import {existsSync, readFileSync, writeFileSync, mkdirSync} from 'fs';
+import {join, dirname, extname, resolve} from 'path';
 
 /**
  * Interface for render options
@@ -127,13 +127,18 @@ const downloadAsset = async (url: string, targetDir: string, key: string): Promi
   }
 
   const filename = `${key}-${Date.now()}${extension}`;
-  const filePath = join(targetDir, filename);
+  const absoluteDir = resolve(targetDir);
+  if (!existsSync(absoluteDir)) {
+    mkdirSync(absoluteDir, {recursive: true});
+  }
+  const filePath = join(absoluteDir, filename);
   writeFileSync(filePath, Buffer.from(response.data));
   return filePath;
 };
 
 const prepareInputAssets = async (input: Record<string, any>, jobDir: string) => {
   const result: Record<string, any> = {...input};
+  const absoluteJobDir = resolve(jobDir);
 
   await Promise.all(
     Object.entries(result).map(async ([key, value]) => {
@@ -147,7 +152,7 @@ const prepareInputAssets = async (input: Record<string, any>, jobDir: string) =>
 
       if (isHttpUrl(value)) {
         try {
-          const localPath = await downloadAsset(value, jobDir, key.toLowerCase());
+          const localPath = await downloadAsset(value, absoluteJobDir, key.toLowerCase());
           result[key] = `file://${localPath}`;
         } catch (error) {
           console.warn(`  Failed to download asset for ${key}: ${(error as Error).message}`);

@@ -214,7 +214,7 @@ export async function renderTemplateToMp4(
 			template,
 			input,
 		},
-		onProgress: ({progress}) => {
+		onProgress: ({progress}: {progress: number}) => {
 			if (progress % 10 === 0 || progress === 100) {
 				console.log(`  Progress: ${progress.toFixed(1)}%`);
 			}

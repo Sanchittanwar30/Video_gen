@@ -147,18 +147,13 @@ export function getStorageService(): StorageService {
 	const provider = config.storage.provider;
 	
 	switch (provider) {
-		case 's3':
-			if (!config.storage.s3.accessKeyId || !config.storage.s3.secretAccessKey) {
-				console.warn('S3 credentials not configured, falling back to local storage');
-				return new LocalStorageService();
-			}
-			return new S3StorageService();
 		case 'supabase':
 			if (!config.storage.supabase.url || !config.storage.supabase.key) {
 				console.warn('Supabase credentials not configured, falling back to local storage');
 				return new LocalStorageService();
 			}
 			return new SupabaseStorageService();
+		case 'local':
 		default:
 			return new LocalStorageService();
 	}

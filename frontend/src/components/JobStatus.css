@@ -1,0 +1,161 @@
+.job-status {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.status-header h2 {
+  color: #333;
+  font-size: 1.8rem;
+}
+
+.reset-button {
+  padding: 10px 20px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.reset-button:hover {
+  background: #5568d3;
+}
+
+.status-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 8px 16px;
+  border-radius: 20px;
+  color: white;
+  font-weight: 600;
+  font-size: 0.9rem;
+  width: fit-content;
+}
+
+.job-id {
+  color: #666;
+  font-size: 0.9rem;
+  font-family: monospace;
+}
+
+.progress-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 30px;
+  background: #e0e0e0;
+  border-radius: 15px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  transition: width 0.3s ease;
+  border-radius: 15px;
+}
+
+.progress-text {
+  text-align: center;
+  font-weight: 600;
+  color: #333;
+}
+
+.video-result {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.video-result h3 {
+  color: #4caf50;
+  font-size: 1.5rem;
+}
+
+.video-player {
+  width: 100%;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.video-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.download-button,
+.open-button {
+  flex: 1;
+  padding: 12px 24px;
+  text-align: center;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: transform 0.2s;
+}
+
+.download-button {
+  background: #4caf50;
+  color: white;
+}
+
+.open-button {
+  background: #2196f3;
+  color: white;
+}
+
+.download-button:hover,
+.open-button:hover {
+  transform: translateY(-2px);
+}
+
+.error-section {
+  padding: 20px;
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 8px;
+}
+
+.error-section h3 {
+  color: #c33;
+  margin-bottom: 10px;
+}
+
+.error-text {
+  color: #c33;
+  font-family: monospace;
+  font-size: 0.9rem;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+}
+
+.error {
+  text-align: center;
+  padding: 40px;
+  color: #c33;
+}
+

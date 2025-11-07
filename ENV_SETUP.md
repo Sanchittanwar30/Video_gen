@@ -99,19 +99,25 @@ ASSET_STORAGE_PROVIDER=local
 
 No additional configuration needed. Files will be stored in `./output` directory.
 
-### AI Services (Optional)
+### AI Services (Required for Frontend)
 
 ```env
-# OpenAI API Key (for future AI features)
-OPENAI_API_KEY=sk-your-openai-api-key
+# Gemini API Key (required for AI-powered content generation)
+GEMINI_API_KEY=your-gemini-api-key
+# Optional: Gemini model name (default gemini-1.5-flash)
+GEMINI_MODEL=gemini-1.5-flash
+# Optional: Minimum delay between Gemini calls in milliseconds (default 4000)
+GEMINI_MIN_INTERVAL_MS=4000
 ```
 
-**How to get OpenAI API key:**
-1. Go to [platform.openai.com](https://platform.openai.com)
-2. Create account or sign in
-3. Go to API Keys section
-4. Create new secret key
-5. Copy the key (starts with `sk-`)
+**How to get Gemini API key:**
+1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. Create or sign in with your Google account
+3. Click "Create API key" for your project
+4. Copy the key (starts with `AIza`)
+5. **Important**: Store it securely—treat it like any other secret
+
+**Note**: The frontend uses Gemini to generate video titles, subtitles, and scripts based on your topic. Ensure the Generative AI API is enabled for your Google Cloud project.
 
 ### Directory Configuration
 

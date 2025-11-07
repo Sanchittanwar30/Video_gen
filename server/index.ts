@@ -1,15 +1,18 @@
-import express, {Request, Response} from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
-import {config} from './config';
+import { config } from './config';
 import videoRoutes from './routes/video';
-import {VideoWebSocketServer} from './websocket';
+import aiRoutes from './routes/ai';
+import { VideoWebSocketServer } from './websocket';
+
 
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({extended: true}));
+app.use(express.urlencoded({ extended: true }));
+app.use('/api/ai', aiRoutes);
 
 // Health check endpoint
 app.get('/health', (req: Request, res: Response) => {
@@ -22,6 +25,7 @@ app.get('/health', (req: Request, res: Response) => {
 
 // API routes
 app.use('/api/video', videoRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
@@ -58,5 +62,5 @@ process.on('SIGTERM', () => {
 	});
 });
 
-export {app, wsServer};
+export { app, wsServer };
 

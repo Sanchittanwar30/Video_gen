@@ -72,7 +72,7 @@ npm install
 2. Set up environment variables:
 ```bash
 cp env.example .env
-# Edit .env with your configuration
+# Edit .env with your configuration (Redis, Supabase, Gemini API key)
 ```
 
    See [ENV_SETUP.md](./ENV_SETUP.md) for detailed environment variable configuration guide.
@@ -98,6 +98,9 @@ npm run dev:api
 
 # Terminal 2: Start worker
 npm run dev:worker
+
+# Terminal 3: Start frontend (optional)
+npm run dev:frontend
 ```
 
 5. Test the API:

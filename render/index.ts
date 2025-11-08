@@ -105,6 +105,14 @@ const contentTypeToExtension = (contentType?: string) => {
   return '';
 };
 
+const isLikelyImage = (extension: string, contentType?: string) => {
+	const lowerExt = extension.toLowerCase();
+	if (contentType && contentType.startsWith('image/')) {
+		return true;
+	}
+	return ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'].includes(lowerExt);
+};
+
 const downloadAsset = async (url: string, targetDir: string, key: string): Promise<string> => {
   const response = await axios.get<ArrayBuffer>(url, {
     responseType: 'arraybuffer',
@@ -127,13 +135,22 @@ const downloadAsset = async (url: string, targetDir: string, key: string): Promi
     extension = '.bin';
   }
 
-  const filename = `${key}-${Date.now()}${extension}`;
+  const contentType = response.headers['content-type'] || '';
+  const buffer = Buffer.from(response.data);
+
+  if (isLikelyImage(extension, contentType)) {
+    const mime = contentType || `image/${extension.replace('.', '') || 'png'}`;
+    const base64 = buffer.toString('base64');
+    return `data:${mime};base64,${base64}`;
+  }
+
+  const filename = `${key}-${Date.now()}${extension || ''}`;
   const absoluteDir = resolve(targetDir);
   if (!existsSync(absoluteDir)) {
     mkdirSync(absoluteDir, {recursive: true});
   }
   const filePath = join(absoluteDir, filename);
-  writeFileSync(filePath, Buffer.from(response.data));
+  writeFileSync(filePath, buffer);
   return filePath;
 };
 
@@ -153,8 +170,8 @@ const prepareInputAssets = async (input: Record<string, any>, jobDir: string) =>
 
       if (isHttpUrl(value)) {
         try {
-          const localPath = await downloadAsset(value, absoluteJobDir, key.toLowerCase());
-          result[key] = `file://${localPath}`;
+          const localAsset = await downloadAsset(value, absoluteJobDir, key.toLowerCase());
+          result[key] = isDataUrl(localAsset) ? localAsset : `file://${localAsset}`;
         } catch (error) {
           console.warn(`  Failed to download asset for ${key}: ${(error as Error).message}`);
           const lowerKey = key.toLowerCase();
@@ -172,6 +189,10 @@ const prepareInputAssets = async (input: Record<string, any>, jobDir: string) =>
 
   return result;
 };
+
+const shouldStripAvFoundationArgs =
+	(process.env.STRIP_AVFOUNDATION_ARGS || '').toLowerCase() === 'true' ||
+	process.env.STRIP_AVFOUNDATION_ARGS === '1';
 
 /**
  * Renders a template to MP4 using Remotion
@@ -342,6 +363,44 @@ export async function renderTemplateToMp4(
 		videoBitrate: null,
 		audioBitrate: null,
 		omitAudio: !hasAudioTracks,
+		ffmpegOverride: (args: string[]) => {
+			if (
+				process.platform !== 'darwin' ||
+				!shouldStripAvFoundationArgs
+			) {
+				return args;
+			}
+
+			let sanitized = args;
+
+			// Remove the sequence "-f lavfi -i anullsrc=..."
+			const stripLavfi = (currentArgs: string[]) => {
+				const result: string[] = [];
+				for (let i = 0; i < currentArgs.length; i++) {
+					if (
+						currentArgs[i] === '-f' &&
+						currentArgs[i + 1] === 'lavfi' &&
+						currentArgs[i + 2] === '-i' &&
+						currentArgs[i + 3]?.startsWith('anullsrc')
+					) {
+						i += 3;
+						continue;
+					}
+					result.push(currentArgs[i]);
+				}
+				return result;
+			};
+
+			sanitized = stripLavfi(sanitized);
+
+			if (sanitized.length !== args.length) {
+				console.log(
+					'  Applied ffmpegOverride: stripped silent audio arguments to avoid AVFoundation issues.'
+				);
+			}
+
+			return sanitized;
+		},
 	};
 
 	await renderMedia(renderOptions).catch((error: any) => {

@@ -80,6 +80,7 @@ interface VoiceoverTrack {
 }
 
 type Track = TextTrack | ImageTrack | BackgroundTrack | VoiceoverTrack;
+type AnimatableTrack = TextTrack | ImageTrack;
 
 interface Template {
 	timeline: {
@@ -111,15 +112,15 @@ function resolvePlaceholder(value: string, input: Record<string, any>): string {
  * Applies animation based on configuration
  */
 function useAnimation(
-	animation: Track['animation'],
+	animation: AnimatableTrack['animation'],
 	startFrame: number,
 	endFrame: number
 ) {
 	const frame = useCurrentFrame();
-	const {fps} = useVideoConfig();
+	const { fps } = useVideoConfig();
 
 	if (!animation) {
-		return {opacity: 1, translateX: 0, translateY: 0};
+		return { opacity: 1, translateX: 0, translateY: 0 };
 	}
 
 	const duration = animation.duration ? animation.duration * fps : 30;
@@ -204,7 +205,7 @@ function useAnimation(
 		);
 	}
 
-	return {opacity, translateX, translateY};
+	return { opacity, translateX, translateY };
 }
 
 /**
@@ -267,7 +268,7 @@ function ImageTrackComponent({
 	}
 
 	const src = resolvePlaceholder(track.src, input);
-	
+
 	// Skip rendering if image source is empty
 	if (!src || src.trim() === '') {
 		return null;
@@ -350,7 +351,7 @@ function VoiceoverTrackComponent({
 	input: Record<string, any>;
 }) {
 	const frame = useCurrentFrame();
-	const {fps} = useVideoConfig();
+	const { fps } = useVideoConfig();
 
 	if (frame < track.startFrame || frame > track.endFrame) {
 		return null;
@@ -380,11 +381,11 @@ export const TemplateComposition: React.FC<TemplateCompositionProps> = ({
 	template,
 	input,
 }) => {
-	const {fps} = useVideoConfig();
+	const { fps } = useVideoConfig();
 	const tracks = template.tracks || [];
 
 	return (
-		<AbsoluteFill style={{backgroundColor: '#000000'}}>
+		<AbsoluteFill style={{ backgroundColor: '#000000' }}>
 			{/* Render background tracks first */}
 			{tracks
 				.filter((track): track is BackgroundTrack => track.type === 'background')

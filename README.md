@@ -344,7 +344,8 @@ The render script validates:
 - **Primary Workarounds (in order):**
   1. **Upgrade Remotion binaries:** `npm update @remotion/renderer @remotion/bundler @remotion/cli remotion`
   2. **Point Remotion to system FFmpeg:** install FFmpeg via Homebrew and set `FFMPEG_BINARY` / `FFPROBE_BINARY`
-  3. **Render inside Docker/Linux:** run the worker in a Linux container or remote environment
+  3. **Strip silent-audio arguments (dev quick-fix):** set `STRIP_AVFOUNDATION_ARGS=true` when running the worker/API to remove `-f lavfi -i anullsrc=...` from Remotion's FFmpeg command (uses `ffmpegOverride`, handy when testing locally without audio)
+  4. **Render inside Docker/Linux:** run the worker in a Linux container or remote environment
 
 **Video not rendering**
 - Verify all asset URLs are accessible (test URLs in browser first)

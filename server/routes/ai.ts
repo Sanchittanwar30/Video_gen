@@ -108,6 +108,14 @@ const DEFAULT_BACKGROUNDS: Record<string, string> = {
 
 const FALLBACK_LOGO = createLogoDataUrl('Your Logo');
 
+const PLACEHOLDER_HOSTS = [
+  'placeholder.com',
+  'via.placeholder.com',
+  'placehold.it',
+  'dummyimage.com',
+  'placehold.co',
+];
+
 const sanitizeAssetUrl = (value: any, fallback: string) => {
   if (typeof value !== 'string') return fallback;
   const trimmed = value.trim();
@@ -116,6 +124,9 @@ const sanitizeAssetUrl = (value: any, fallback: string) => {
   try {
     const url = new URL(trimmed);
     if (url.protocol !== 'https:') return fallback;
+    if (PLACEHOLDER_HOSTS.some((host) => url.hostname.includes(host))) {
+      return fallback;
+    }
     return url.toString();
   } catch {
     return fallback;

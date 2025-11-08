@@ -7,7 +7,6 @@ temp/
 .DS_Store
 *.mp4
 *.webm
-
 build
 .env
 .env.local

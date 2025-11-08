@@ -87,10 +87,21 @@ export default function VideoForm({ onJobCreated }: VideoFormProps) {
       // Step 1: Generate content using OpenAI
       const generatedContent = await openaiService.generateVideoContent(formData);
 
+      const transcript =
+        (generatedContent.transcript || generatedContent.voiceoverScript || '').trim();
+      const inputWithAudio = {
+        ...generatedContent.input,
+        voiceoverAudio:
+          generatedContent.voiceoverAudio ??
+          generatedContent.input?.voiceoverAudio ??
+          '',
+      };
+
       // Step 2: Create video job
       const jobRequest: VideoJobRequest = {
         template: generatedContent.template,
-        input: generatedContent.input,
+        input: inputWithAudio,
+        transcript: transcript || undefined,
         options: {
           fps: 30,
           width: 1920,

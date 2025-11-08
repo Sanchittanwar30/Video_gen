@@ -113,6 +113,32 @@ export default function JobStatus({ jobId, onReset }: JobStatusProps) {
         </div>
       )}
 
+      {status.status === 'completed' && status.result?.transcript && (
+        <div className="transcript-section">
+          <h3>Transcript</h3>
+          <pre className="transcript-text">{status.result.transcript}</pre>
+          {status.result.transcriptUrl && (
+            <div className="video-actions">
+              <a
+                href={status.result.transcriptUrl}
+                download
+                className="download-button"
+              >
+                Download Transcript
+              </a>
+              <a
+                href={status.result.transcriptUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="open-button"
+              >
+                Open Transcript
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+
       {status.status === 'failed' && status.error && (
         <div className="error-section">
           <h3>Generation Failed</h3>

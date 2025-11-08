@@ -9,6 +9,7 @@ export interface VideoRequirements {
   duration?: number;
   backgroundType?: 'image' | 'color' | 'gradient';
   backgroundColor?: string;
+  includeAudio?: boolean;
 }
 
 export interface GeneratedContent {
@@ -17,6 +18,8 @@ export interface GeneratedContent {
   backgroundImage?: string;
   logoImage?: string;
   voiceoverScript?: string;
+  transcript?: string;
+  voiceoverAudio?: string;
   template: any;
   input: Record<string, any>;
 }
@@ -27,7 +30,18 @@ export const openaiService = {
    */
   async generateVideoContent(requirements: VideoRequirements): Promise<GeneratedContent> {
     const response = await axios.post(`${API_BASE_URL}/api/ai/generate-content`, requirements);
-    return response.data;
+    const { template, input, generatedContent } = response.data || {};
+    return {
+      template,
+      input: input || {},
+      title: generatedContent?.title,
+      subtitle: generatedContent?.subtitle,
+      backgroundImage: generatedContent?.backgroundImage,
+      logoImage: generatedContent?.logoImage,
+      voiceoverScript: generatedContent?.voiceoverScript,
+      transcript: generatedContent?.transcript,
+      voiceoverAudio: generatedContent?.voiceoverAudio ?? input?.voiceoverAudio,
+    };
   },
 };
 

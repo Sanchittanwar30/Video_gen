@@ -52,6 +52,7 @@ export interface VideoJobData {
 	template: any;
 	input: Record<string, any>;
 	outputPath?: string;
+	transcript?: string;
 	options?: {
 		fps?: number;
 		width?: number;

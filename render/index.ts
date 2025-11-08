@@ -101,6 +101,7 @@ const contentTypeToExtension = (contentType?: string) => {
   if (contentType.includes('audio/mpeg')) return '.mp3';
   if (contentType.includes('audio/mp4')) return '.m4a';
   if (contentType.includes('audio/wav')) return '.wav';
+  if (contentType.includes('audio/x-wav')) return '.wav';
   return '';
 };
 
@@ -161,6 +162,8 @@ const prepareInputAssets = async (input: Record<string, any>, jobDir: string) =>
             result[key] = FALLBACK_LOGO_DATA_URL;
           } else if (lowerKey.includes('background') || lowerKey.includes('image')) {
             result[key] = DEFAULT_BACKGROUNDS.default;
+          } else if (lowerKey.includes('audio') || lowerKey.includes('voiceover')) {
+            result[key] = '';
           }
         }
       }
@@ -225,8 +228,7 @@ export async function renderTemplateToMp4(
 	const jobDir = dirname(templatePath);
 	input = await prepareInputAssets(input, jobDir);
 
-	// Filter out empty audio/image tracks BEFORE validation to avoid issues
-	// We need to remove these tracks early so they don't cause problems
+	// Filter out empty media tracks BEFORE validation to avoid issues
 	if (template.tracks && Array.isArray(template.tracks)) {
 		const originalTrackCount = template.tracks.length;
 		template.tracks = template.tracks.filter((track: any) => {
@@ -235,7 +237,6 @@ export async function renderTemplateToMp4(
 				const resolvedSrc = src.replace(/\{\{(\w+)\}\}/g, (match: string, key: string) => {
 					return input[key] !== undefined ? String(input[key]) : match;
 				});
-				// Remove empty or invalid audio tracks
 				if (!resolvedSrc || resolvedSrc.trim() === '') {
 					console.log(`  Filtering out empty voiceover track`);
 					return false;
@@ -299,20 +300,21 @@ export async function renderTemplateToMp4(
 	console.log(`  FPS: ${finalFps}`);
 	console.log(`  Output: ${outPath}`);
 
-	// Check if there are any valid audio tracks
-	const hasAudioTracks = template.tracks && template.tracks.some((track: any) => {
-		if (track.type === 'voiceover') {
+	const hasAudioTracks =
+		Array.isArray(template.tracks) &&
+		template.tracks.some((track: any) => {
+			if (track.type !== 'voiceover') {
+				return false;
+			}
 			const src = track.src || '';
 			const resolvedSrc = src.replace(/\{\{(\w+)\}\}/g, (match: string, key: string) => {
 				return input[key] !== undefined ? String(input[key]) : match;
 			});
 			return resolvedSrc && resolvedSrc.trim() !== '';
-		}
-		return false;
-	});
+		});
 
 	if (!hasAudioTracks) {
-		console.log(`  Note: No audio tracks detected. Rendering video-only (audio may still be processed by Remotion).`);
+		console.log(`  Note: No valid voiceover audio detected. Rendering without audio track.`);
 	}
 
 	// Try to use lower quality settings to potentially avoid FFmpeg issues
@@ -339,12 +341,7 @@ export async function renderTemplateToMp4(
 		crf: 23,
 		videoBitrate: null,
 		audioBitrate: null,
-		omitAudio: true,
-		// Try to configure audio processing
-		...(hasAudioTracks ? {} : {
-			// Attempt to skip audio processing when no audio tracks
-			// Note: Remotion may still try to create silent audio
-		}),
+		omitAudio: !hasAudioTracks,
 	};
 
 	await renderMedia(renderOptions).catch((error: any) => {
@@ -354,9 +351,9 @@ export async function renderTemplateToMp4(
 				`FFmpeg compatibility error on macOS. This is a known issue with Remotion's bundled FFmpeg.\n` +
 				`Workarounds:\n` +
 				`1. Update Remotion: npm update @remotion/renderer @remotion/bundler @remotion/cli remotion\n` +
-				`2. Use local audio files instead of remote URLs\n` +
-				`3. Remove all voiceover tracks from your template\n` +
-				`4. Try rendering on a different system or use Docker\n\n` +
+				`2. Point Remotion to a system-installed FFmpeg (see README)\n` +
+				`3. Render from a Linux environment or Docker container\n` +
+				`4. Temporarily omit voiceover tracks (set includeAudio=false) when audio isn't required\n` +
 				`Original error: ${error.message}`
 			);
 		}

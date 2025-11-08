@@ -89,6 +89,8 @@ class SupabaseStorageService implements StorageService {
 			jpeg: 'image/jpeg',
 			mp3: 'audio/mpeg',
 			wav: 'audio/wav',
+			m4a: 'audio/mp4',
+			txt: 'text/plain',
 		};
 		return types[ext || ''] || 'application/octet-stream';
 	}

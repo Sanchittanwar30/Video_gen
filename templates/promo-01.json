@@ -78,7 +78,7 @@
       "src": "{{voiceoverAudio}}",
       "startFrame": 0,
       "endFrame": 300,
-      "volume": 0.8
+      "volume": 0.85
     }
   ]
 }

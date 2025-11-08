@@ -229,7 +229,7 @@ Templates are JSON files that define the video structure:
 - `type`: `"voiceover"`
 - `src`: Audio URL (supports placeholders)
 - `startFrame` / `endFrame`: Frame range
-- `volume`: Optional volume (0-1, default: 1)
+- `volume`: Optional gain (0–1, default: 1.0)
 
 ### Animations
 
@@ -288,11 +288,6 @@ npm run build
 ts-node render/index.ts templates/promo-01.json inputs/promo-01-input.json output/promo.mp4
 ```
 
-**Note:** If you encounter FFmpeg errors on macOS, use the no-audio template:
-```bash
-ts-node render/index.ts templates/promo-01-no-audio.json inputs/promo-01-input.json output/promo.mp4
-```
-
 ### Example 2: Custom Resolution
 
 ```bash
@@ -331,10 +326,10 @@ The render script validates:
 ## Notes
 
 - Video and image URLs can be local paths or remote URLs
-- Audio files should be in formats supported by Remotion (MP3, WAV, etc.)
+- Voiceover audio URLs are supported (MP3, WAV, M4A); remote assets are downloaded and cached per job
 - Frame-accurate timing ensures precise track positioning
 - All styling uses inline styles for maximum control
-- The composition is optimized for programmatic rendering
+- The composition ships with transcript support—pass a transcript string when queuing a job to have it uploaded alongside the rendered video
 
 ## Troubleshooting
 
@@ -345,17 +340,11 @@ The render script validates:
 - Check that your JSON is valid (use a JSON validator)
 
 **Error: "Symbol not found: (_AVCaptureDeviceTypeDeskViewCamera)" or FFmpeg errors**
-- This is a known macOS compatibility issue with Remotion's bundled FFmpeg
-- The render script automatically filters out empty voiceover tracks, but Remotion still tries to create silent audio
-- **Quick Fix - Use Low Resolution:**
-  ```bash
-  npm run render:low templates/promo-01-no-audio.json inputs/promo-01-input.json output/video.mp4
-  ```
+- This is a known macOS compatibility issue with Remotion's bundled FFmpeg (even when rendering video-only)
 - **Primary Workarounds (in order):**
   1. **Upgrade Remotion binaries:** `npm update @remotion/renderer @remotion/bundler @remotion/cli remotion`
-  2. **Use local audio instead of remote URLs:** download audio files and reference them via local paths
-  3. **Remove voiceover tracks entirely:** edit templates to omit `voiceover` tracks when audio isn’t needed
-  4. **Switch to system FFmpeg / Docker:** install FFmpeg via Homebrew and set `FFMPEG_BINARY`, or render inside Docker to bypass macOS FFmpeg issues
+  2. **Point Remotion to system FFmpeg:** install FFmpeg via Homebrew and set `FFMPEG_BINARY` / `FFPROBE_BINARY`
+  3. **Render inside Docker/Linux:** run the worker in a Linux container or remote environment
 
 **Video not rendering**
 - Verify all asset URLs are accessible (test URLs in browser first)
@@ -363,6 +352,7 @@ The render script validates:
 - Check that file paths are correct (use absolute paths if needed)
 - Ensure Remotion is properly bundled (`npm run build`)
 - Empty audio/image sources are automatically skipped (won't cause errors)
+- Provide valid HTTPS audio URLs for voiceover tracks; if audio fails to download the track is removed before rendering
 
 ## License
 

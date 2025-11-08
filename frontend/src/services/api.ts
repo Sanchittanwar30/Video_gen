@@ -5,6 +5,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 export interface VideoJobRequest {
   template: any;
   input: Record<string, any>;
+  transcript?: string;
   options?: {
     fps?: number;
     width?: number;
@@ -32,6 +33,8 @@ export interface JobStatus {
     videoUrl: string;
     remotePath: string;
     completedAt: string;
+    transcript?: string;
+    transcriptUrl?: string;
   };
   error?: string;
   createdAt?: number;

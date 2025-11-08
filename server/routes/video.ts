@@ -13,7 +13,7 @@ const router = Router();
  */
 router.post('/generate', async (req: Request, res: Response) => {
 	try {
-		const {template, input, options, webhookUrl, userId} = req.body;
+		const {template, input, options, webhookUrl, userId, transcript} = req.body;
 
 		if (!template || !input) {
 			return res.status(400).json({
@@ -45,6 +45,7 @@ router.post('/generate', async (req: Request, res: Response) => {
 			template,
 			input,
 			options: options || {},
+			transcript,
 			userId,
 			webhookUrl,
 		});

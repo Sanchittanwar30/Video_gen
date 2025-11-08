@@ -357,13 +357,12 @@ function VoiceoverTrackComponent({
 	}
 
 	const src = resolvePlaceholder(track.src, input);
-	
-	// Skip rendering if audio source is empty or invalid
+
 	if (!src || src.trim() === '') {
 		return null;
 	}
 
-	const startFrom = (track.startFrame / fps) * 1000; // Convert to milliseconds
+	const startFrom = (track.startFrame / fps) * 1000;
 
 	return (
 		<Audio

@@ -59,7 +59,7 @@ async function callGemini(prompt: string, attempt = 1): Promise<string> {
               {
                 text: `${prompt}
 
-Return only valid JSON with keys: title, subtitle, backgroundImage, logoImage${prompt.includes('voiceover') ? ', voiceoverScript' : ''}.` ,
+Return only valid JSON with keys: title, subtitle, backgroundImage, logoImage, voiceoverScript.` ,
               },
             ],
           },
@@ -129,9 +129,9 @@ router.post('/generate-content', aiLimiter, async (req: Request, res: Response) 
       description = '',
       style = 'professional',
       duration = 10,
-      includeAudio = false,
       backgroundType = 'image',
       backgroundColor = '#667eea',
+      includeAudio = true,
     } = req.body;
 
     if (!topic) {
@@ -152,6 +152,7 @@ Requirements:
 - Generate a subtitle/description (max 120 characters)
 - Suggest a background image URL (use Unsplash or similar)
 - Provide a logo image URL (placeholder is acceptable)
+- Draft a short voiceover script that can be narrated in ${duration} seconds
 - Style: ${style}`;
 
     const geminiText = await callGemini(prompt);
@@ -174,6 +175,8 @@ Requirements:
     const fallbackBackground = DEFAULT_BACKGROUNDS[style] || DEFAULT_BACKGROUNDS.default;
     const backgroundImageUrl = sanitizeAssetUrl(generated.backgroundImage, fallbackBackground);
     const logoImageUrl = sanitizeAssetUrl(generated.logoImage, FALLBACK_LOGO);
+    const voiceoverScript = typeof generated.voiceoverScript === 'string' ? generated.voiceoverScript.trim() : '';
+    const voiceoverAudioUrl = sanitizeAssetUrl(generated.voiceoverAudio, '');
 
     const template: any = {
       timeline: { duration: totalFrames, fps },
@@ -236,6 +239,15 @@ Requirements:
         endFrame: Math.floor(totalFrames * 0.9),
       });
     }
+    if (includeAudio) {
+      template.tracks.push({
+        type: 'voiceover',
+        src: '{{voiceoverAudio}}',
+        startFrame: 0,
+        endFrame: totalFrames,
+        volume: 0.85,
+      });
+    }
 
     const input: Record<string, any> = {
       title: generated.title || topic,
@@ -244,6 +256,9 @@ Requirements:
     if (description) input.description = description;
     if (backgroundType === 'image') input.backgroundImage = backgroundImageUrl;
     if (logoImageUrl) input.logoImage = logoImageUrl;
+    if (includeAudio) {
+      input.voiceoverAudio = voiceoverAudioUrl;
+    }
 
     res.json({
       template,
@@ -251,7 +266,9 @@ Requirements:
       generatedContent: {
         title: generated.title,
         subtitle: generated.subtitle,
-        voiceoverScript: generated.voiceoverScript,
+        voiceoverScript,
+        transcript: voiceoverScript,
+        voiceoverAudio: voiceoverAudioUrl,
       },
     });
   } catch (error: any) {

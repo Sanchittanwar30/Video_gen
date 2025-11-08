@@ -147,6 +147,37 @@
   font-size: 0.9rem;
 }
 
+.transcript-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.transcript-section h3 {
+  color: #333;
+  font-size: 1.3rem;
+  margin: 0;
+}
+
+.transcript-text {
+  margin: 0;
+  padding: 12px;
+  background: #fff;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  max-height: 240px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #1f2933;
+}
+
 .loading {
   text-align: center;
   padding: 40px;

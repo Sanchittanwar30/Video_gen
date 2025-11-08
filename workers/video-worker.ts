@@ -3,7 +3,7 @@ import {config} from '../server/config';
 import {VideoJobData} from '../server/queue';
 import {renderTemplateToMp4} from '../render/index';
 import {getStorageService} from '../server/services/storage';
-import {existsSync, unlinkSync, mkdirSync} from 'fs';
+import {existsSync, unlinkSync, mkdirSync, writeFileSync} from 'fs';
 import {join, dirname} from 'path';
 import axios from 'axios';
 
@@ -72,6 +72,20 @@ const worker = new Worker<VideoJobData>(
 			const remotePath = `videos/${jobId}/${outputFilename}`;
 			const publicUrl = await storage.uploadFile(outputPath, remotePath);
 
+			let transcriptUrl: string | undefined;
+			const transcriptText =
+				typeof job.data.transcript === 'string' ? job.data.transcript : '';
+			if (transcriptText) {
+				const transcriptFilename = `${jobId}-transcript.txt`;
+				const transcriptPath = join(outputDir, transcriptFilename);
+				writeFileSync(transcriptPath, transcriptText, 'utf-8');
+				const transcriptRemotePath = `videos/${jobId}/${transcriptFilename}`;
+				transcriptUrl = await storage.uploadFile(transcriptPath, transcriptRemotePath);
+				if (existsSync(transcriptPath)) {
+					unlinkSync(transcriptPath);
+				}
+			}
+
 			// Update progress: Complete
 			await job.updateProgress(100);
 
@@ -112,6 +126,8 @@ const worker = new Worker<VideoJobData>(
 				status: 'completed',
 				videoUrl: publicUrl,
 				remotePath,
+				transcript: transcriptText || undefined,
+				transcriptUrl,
 				completedAt: new Date().toISOString(),
 			};
 		} catch (error: any) {

@@ -15,7 +15,8 @@
     "start:worker": "ts-node workers/video-worker.ts",
     "dev:api": "ts-node-dev --respawn server/index.ts",
     "dev:worker": "ts-node-dev --respawn workers/video-worker.ts",
-    "dev:frontend": "cd frontend && npm run dev"
+    "dev:frontend": "cd frontend && npm run dev",
+    "postinstall": "patch-package"
   },
   "keywords": [
     "remotion",
@@ -52,6 +53,7 @@
     "@types/react-dom": "^18.2.0",
     "@types/uuid": "^9.0.7",
     "@types/ws": "^8.5.10",
+    "patch-package": "^8.0.1",
     "prettier": "^3.1.0",
     "remotion": "^4.0.373",
     "ts-node": "^10.9.2",

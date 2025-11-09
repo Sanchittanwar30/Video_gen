@@ -372,17 +372,15 @@ export async function renderTemplateToMp4(
 		videoBitrate: null,
 		audioBitrate: null,
 		omitAudio: !hasAudioTracks,
-		ffmpegOverride: (args: string[]) => {
+		ffmpegOverride: ({args, type}: {args: string[]; type: string}) => {
 			if (
 				process.platform !== 'darwin' ||
-				!shouldStripAvFoundationArgs
+				!shouldStripAvFoundationArgs ||
+				type !== 'stitcher'
 			) {
 				return args;
 			}
 
-			let sanitized = args;
-
-			// Remove the sequence "-f lavfi -i anullsrc=..."
 			const stripLavfi = (currentArgs: string[]) => {
 				const result: string[] = [];
 				for (let i = 0; i < currentArgs.length; i++) {
@@ -400,7 +398,7 @@ export async function renderTemplateToMp4(
 				return result;
 			};
 
-			sanitized = stripLavfi(sanitized);
+			const sanitized = stripLavfi(args);
 
 			if (sanitized.length !== args.length) {
 				console.log(

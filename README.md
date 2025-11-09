@@ -27,6 +27,8 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system documentation.
   - Images with positioning
   - Voiceover/audio tracks
 - **Animations**: Fade-in and slide animations with configurable timing
+- **Gradient & solid backgrounds**: Supply CSS colors/gradients or remote media for instant branding
+- **Education-ready layouts**: Card-style text sections with progressive reveals for lessons or explainers
 - **Programmatic API**: Render videos from Node.js scripts
 - **Validation**: Automatic placeholder validation before rendering
 
@@ -42,9 +44,11 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system documentation.
 ├── render/
 │   └── index.ts                     # Programmatic rendering function
 ├── templates/
-│   └── promo-01.json                # Example template
+│   ├── promo-01.json                # Marketing-style template
+│   └── education.json               # Text-first educational template
 ├── inputs/
-│   └── promo-01-input.json          # Example input data
+│   ├── promo-01-input.json          # Example input data
+│   └── education-sample.json        # Example lesson input data
 ├── scripts/
 │   └── preview.ts                   # Preview script for testing
 ├── package.json
@@ -133,6 +137,9 @@ ts-node render/index.ts templates/promo-01.json inputs/promo-01-input.json outpu
 
 # With custom options
 ts-node render/index.ts templates/promo-01.json inputs/promo-01-input.json output/video.mp4 30 1920 1080 300
+
+# Educational sample (text-to-video)
+ts-node render/index.ts templates/education.json inputs/education-sample.json output/education.mp4 30 1920 1080 600
 ```
 
 #### Method 2: Using the programmatic API
@@ -201,6 +208,10 @@ Templates are JSON files that define the video structure:
   ]
 }
 ```
+
+Key notes:
+- `background.src` accepts HTTPS image/video URLs, `data:` URIs, solid colors (for example, `#0ea5e9`), or CSS gradients (for example, `linear-gradient(135deg, #1f2937 0%, #312e81 100%)`).
+- `style` mirrors CSS properties such as `fontSize`, `color`, `x`/`y` positions, `anchor` (`"center"` or `"top-left"`), `padding`, `borderRadius`, and more.
 
 ### Track Types
 

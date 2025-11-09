@@ -338,6 +338,15 @@ export async function renderTemplateToMp4(
 		console.log(`  Note: No valid voiceover audio detected. Rendering without audio track.`);
 	}
 
+	const ffmpegExecutable =
+		process.env.FFMPEG_BINARY ||
+		process.env.REMOTION_FFMPEG_EXECUTABLE ||
+		process.env.REMOTION_FFMPEG_BINARY;
+	const ffprobeExecutable =
+		process.env.FFPROBE_BINARY ||
+		process.env.REMOTION_FFPROBE_EXECUTABLE ||
+		process.env.REMOTION_FFPROBE_BINARY;
+
 	// Try to use lower quality settings to potentially avoid FFmpeg issues
 	// Also try using different codec options
 	const renderOptions: any = {
@@ -402,6 +411,20 @@ export async function renderTemplateToMp4(
 			return sanitized;
 		},
 	};
+
+	if (ffmpegExecutable) {
+		renderOptions.ffmpegExecutable = ffmpegExecutable;
+		console.log(`  Using custom FFmpeg binary: ${ffmpegExecutable}`);
+	} else {
+		console.log(`  Using Remotion bundled FFmpeg binary.`);
+	}
+
+	if (ffprobeExecutable) {
+		renderOptions.ffprobeExecutable = ffprobeExecutable;
+		console.log(`  Using custom FFprobe binary: ${ffprobeExecutable}`);
+	} else {
+		console.log(`  Using Remotion bundled FFprobe binary.`);
+	}
 
 	await renderMedia(renderOptions).catch((error: any) => {
 		// Check if it's the macOS FFmpeg compatibility issue

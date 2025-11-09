@@ -8,6 +8,6 @@ temp/
 *.mp4
 *.webm
 build
-.env
+
 .env.local
 

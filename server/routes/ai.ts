@@ -59,7 +59,7 @@ async function callGemini(prompt: string, attempt = 1): Promise<string> {
               {
                 text: `${prompt}
 
-Return only valid JSON with keys: title, subtitle, backgroundImage, logoImage, voiceoverScript.` ,
+Return only valid JSON with keys: title, subtitle, backgroundImage, voiceoverScript, sections (array of objects with optional heading and summary fields), logoImage (optional).` ,
               },
             ],
           },
@@ -140,9 +140,12 @@ router.post('/generate-content', aiLimiter, async (req: Request, res: Response) 
       description = '',
       style = 'professional',
       duration = 10,
-      backgroundType = 'image',
+      backgroundType = 'gradient',
       backgroundColor = '#667eea',
       includeAudio = true,
+      includeLogo = false,
+      callToAction,
+      sections: manualSections,
     } = req.body;
 
     if (!topic) {
@@ -185,9 +188,90 @@ Requirements:
 
     const fallbackBackground = DEFAULT_BACKGROUNDS[style] || DEFAULT_BACKGROUNDS.default;
     const backgroundImageUrl = sanitizeAssetUrl(generated.backgroundImage, fallbackBackground);
-    const logoImageUrl = sanitizeAssetUrl(generated.logoImage, FALLBACK_LOGO);
+    const logoImageUrl = includeLogo ? sanitizeAssetUrl(generated.logoImage, FALLBACK_LOGO) : '';
     const voiceoverScript = typeof generated.voiceoverScript === 'string' ? generated.voiceoverScript.trim() : '';
     const voiceoverAudioUrl = sanitizeAssetUrl(generated.voiceoverAudio, '');
+
+    type SectionCandidate = {
+      heading?: string;
+      body?: string;
+    };
+
+    const isDefined = <T>(value: T | null | undefined): value is T => value !== null && value !== undefined;
+
+    const normalizeSection = (section: unknown): SectionCandidate | null => {
+      if (typeof section === 'string') {
+        const trimmed = section.trim();
+        return trimmed ? { body: trimmed } : null;
+      }
+
+      if (section && typeof section === 'object') {
+        const record = section as Record<string, unknown>;
+        const headingCandidate = [record.heading, record.title].find(
+          (value): value is string => typeof value === 'string' && value.trim().length > 0
+        );
+        const bodyCandidate = [record.summary, record.body, record.content, record.text].find(
+          (value): value is string => typeof value === 'string' && value.trim().length > 0
+        );
+
+        if (headingCandidate || bodyCandidate) {
+          return {
+            heading: headingCandidate?.trim(),
+            body: bodyCandidate?.trim(),
+          };
+        }
+      }
+
+      return null;
+    };
+
+    const normalizedManualSections: SectionCandidate[] = Array.isArray(manualSections)
+      ? manualSections.map(normalizeSection).filter(isDefined)
+      : [];
+
+    const generatedSections: SectionCandidate[] = Array.isArray(generated.sections)
+      ? generated.sections.map(normalizeSection).filter(isDefined)
+      : [];
+
+    const sectionSources: SectionCandidate[] = [...normalizedManualSections, ...generatedSections];
+
+    const fallbackSentencesSource = voiceoverScript || generated.subtitle || description;
+    const fallbackSections: SectionCandidate[] =
+      sectionSources.length === 0 && fallbackSentencesSource
+        ? fallbackSentencesSource
+            .split(/(?<=[.?!])\s+/)
+            .map((sentence: string) => sentence.trim())
+            .filter((sentence: string) => sentence.length > 0)
+            .map((sentence: string) => ({ body: sentence }))
+        : [];
+
+    const combinedSections: SectionCandidate[] = [...sectionSources, ...fallbackSections].filter(isDefined);
+
+    type SectionContent = { heading: string; body: string };
+
+    const maxSections = Math.min(4, Math.max(1, combinedSections.length || 3));
+    let sectionsToUse: SectionContent[] = combinedSections.slice(0, maxSections).map((section, index) => {
+      const heading = section.heading && section.heading.length > 0 ? section.heading : `Key Point ${index + 1}`;
+      const bodyText = section.body && section.body.length > 0 ? section.body : heading;
+      const formattedBody = bodyText.replace(/\s+/g, ' ').trim();
+      return {
+        heading,
+        body: formattedBody,
+      };
+    });
+
+    if (sectionsToUse.length === 0) {
+      sectionsToUse = [
+        { heading: `What is ${topic}?`, body: `Get a quick overview of ${topic} and why it matters.` },
+        { heading: 'Core Ideas', body: `Highlight the most important concepts to remember about ${topic}.` },
+        { heading: 'Next Steps', body: `Explore practical ways to apply ${topic} in real situations.` },
+      ];
+    }
+
+    const outroMessage =
+      typeof callToAction === 'string' && callToAction.trim().length > 0
+        ? callToAction.trim()
+        : `Keep exploring ${topic} to grow your knowledge!`;
 
     const template: any = {
       timeline: { duration: totalFrames, fps },
@@ -209,48 +293,120 @@ Requirements:
           content: '{{title}}',
           style: {
             fontSize: 72,
-            fontFamily: 'Arial, sans-serif',
-            color: '#ffffff',
-            fontWeight: 'bold',
+            fontFamily: 'Inter, Arial, sans-serif',
+            color: '#f8fafc',
+            fontWeight: 700,
             textAlign: 'center',
             x: 960,
-            y: 400,
-            width: 1400,
+            y: 320,
+            width: 1500,
+            anchor: 'center',
+            textShadow: '0 12px 30px rgba(15, 23, 42, 0.45)',
           },
-          animation: { type: 'fade-in', duration: 1.0, delay: 0.5 },
-          startFrame: Math.floor(totalFrames * 0.1),
-          endFrame: Math.floor(totalFrames * 0.6),
+          animation: { type: 'fade-in', duration: 1.0, delay: 0.4 },
+          startFrame: Math.floor(totalFrames * 0.05),
+          endFrame: Math.floor(totalFrames * 0.35),
         },
         {
           type: 'text',
           content: '{{subtitle}}',
           style: {
-            fontSize: 48,
-            fontFamily: 'Arial, sans-serif',
-            color: '#ffffff',
+            fontSize: 46,
+            fontFamily: 'Inter, Arial, sans-serif',
+            color: '#e2e8f0',
             textAlign: 'center',
             x: 960,
-            y: 550,
-            width: 1400,
+            y: 450,
+            width: 1500,
+            anchor: 'center',
           },
-          animation: { type: 'slide', duration: 1.0, delay: 1.0, from: 'bottom' },
-          startFrame: Math.floor(totalFrames * 0.2),
-          endFrame: Math.floor(totalFrames * 0.8),
+          animation: { type: 'slide', duration: 1.0, delay: 0.9, from: 'bottom' },
+          startFrame: Math.floor(totalFrames * 0.12),
+          endFrame: Math.floor(totalFrames * 0.45),
         },
       ],
     };
 
-    if (logoImageUrl) {
+    const introDuration = Math.floor(totalFrames * 0.2);
+    const outroDuration = Math.floor(totalFrames * 0.15);
+    const sectionWindow = Math.max(totalFrames - introDuration - outroDuration, totalFrames * 0.4);
+    const perSectionDuration = Math.floor(sectionWindow / Math.max(1, sectionsToUse.length));
+
+    sectionsToUse.forEach((section, index) => {
+      const startFrame = Math.min(
+        totalFrames - outroDuration - 10,
+        Math.floor(introDuration + index * perSectionDuration)
+      );
+      const endFrame = Math.min(totalFrames - 1, startFrame + perSectionDuration);
+      const key = `section_${index + 1}`;
+
+      template.tracks.push({
+        type: 'text',
+        content: `{{${key}}}`,
+        style: {
+          fontSize: 44,
+          fontFamily: 'Inter, Arial, sans-serif',
+          color: '#f8fafc',
+          textAlign: 'center',
+          x: 960,
+          y: 600,
+          width: 1500,
+          anchor: 'center',
+          padding: '32px',
+          backgroundColor: 'rgba(15, 23, 42, 0.55)',
+          borderRadius: '24px',
+          backdropFilter: 'blur(6px)',
+          boxShadow: '0 18px 50px rgba(15, 23, 42, 0.45)',
+        },
+        animation: {
+          type: 'slide',
+          duration: 0.9,
+          delay: 0.15,
+          from: index % 2 === 0 ? 'left' : 'right',
+        },
+        startFrame,
+        endFrame,
+      });
+    });
+
+    template.tracks.push({
+      type: 'text',
+      content: '{{callToAction}}',
+      style: {
+        fontSize: 38,
+        fontFamily: 'Inter, Arial, sans-serif',
+        color: '#e2e8f0',
+        textAlign: 'center',
+        x: 960,
+        y: 860,
+        width: 1600,
+        anchor: 'center',
+      },
+      animation: { type: 'fade-in', duration: 0.8, delay: 0.2 },
+      startFrame: Math.max(totalFrames - outroDuration, introDuration),
+      endFrame: totalFrames,
+    });
+
+    if (includeLogo && logoImageUrl) {
       template.tracks.push({
         type: 'image',
         src: '{{logoImage}}',
-        style: { x: 760, y: 700, width: 400, height: 200, objectFit: 'contain' },
+        style: {
+          x: 1700,
+          y: 940,
+          width: 200,
+          height: 100,
+          anchor: 'center',
+          objectFit: 'contain',
+          opacity: 0.9,
+        },
         animation: { type: 'fade-in', duration: 0.8, delay: 1.5 },
-        startFrame: Math.floor(totalFrames * 0.3),
-        endFrame: Math.floor(totalFrames * 0.9),
+        startFrame: Math.floor(totalFrames * 0.4),
+        endFrame: totalFrames,
       });
     }
-    if (includeAudio) {
+
+    if (includeAudio && voiceoverAudioUrl) {
       template.tracks.push({
         type: 'voiceover',
         src: '{{voiceoverAudio}}',
@@ -263,11 +419,17 @@ Requirements:
     const input: Record<string, any> = {
       title: generated.title || topic,
       subtitle: generated.subtitle || `Learn more about ${topic}`,
+      callToAction: outroMessage,
     };
     if (description) input.description = description;
     if (backgroundType === 'image') input.backgroundImage = backgroundImageUrl;
-    if (logoImageUrl) input.logoImage = logoImageUrl;
-    if (includeAudio) {
+    if (includeLogo && logoImageUrl) input.logoImage = logoImageUrl;
+    sectionsToUse.forEach((section, index) => {
+      const key = `section_${index + 1}`;
+      const formatted = `${section.heading}\n${section.body}`;
+      input[key] = formatted;
+    });
+    if (includeAudio && voiceoverAudioUrl) {
       input.voiceoverAudio = voiceoverAudioUrl;
     }
 
@@ -280,6 +442,7 @@ Requirements:
         voiceoverScript,
         transcript: voiceoverScript,
         voiceoverAudio: voiceoverAudioUrl,
+        sections: sectionsToUse,
       },
     });
   } catch (error: any) {

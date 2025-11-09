@@ -1,0 +1,162 @@
+{
+  "timeline": {
+    "duration": 600,
+    "fps": 30
+  },
+  "tracks": [
+    {
+      "type": "background",
+      "src": "linear-gradient(135deg, #1f2937 0%, #312e81 100%)",
+      "startFrame": 0,
+      "endFrame": 600,
+      "style": {
+        "objectFit": "cover"
+      }
+    },
+    {
+      "type": "text",
+      "content": "{{title}}",
+      "style": {
+        "fontSize": 72,
+        "fontFamily": "Inter, Arial, sans-serif",
+        "color": "#f8fafc",
+        "fontWeight": 700,
+        "textAlign": "center",
+        "x": 960,
+        "y": 280,
+        "width": 1500,
+        "anchor": "center",
+        "textShadow": "0 12px 30px rgba(15, 23, 42, 0.45)"
+      },
+      "animation": {
+        "type": "fade-in",
+        "duration": 1.0,
+        "delay": 0.3
+      },
+      "startFrame": 0,
+      "endFrame": 210
+    },
+    {
+      "type": "text",
+      "content": "{{subtitle}}",
+      "style": {
+        "fontSize": 46,
+        "fontFamily": "Inter, Arial, sans-serif",
+        "color": "#e2e8f0",
+        "textAlign": "center",
+        "x": 960,
+        "y": 390,
+        "width": 1500,
+        "anchor": "center"
+      },
+      "animation": {
+        "type": "slide",
+        "duration": 1.0,
+        "delay": 0.8,
+        "from": "bottom"
+      },
+      "startFrame": 30,
+      "endFrame": 240
+    },
+    {
+      "type": "text",
+      "content": "{{section_1}}",
+      "style": {
+        "fontSize": 44,
+        "fontFamily": "Inter, Arial, sans-serif",
+        "color": "#f8fafc",
+        "textAlign": "center",
+        "x": 960,
+        "y": 560,
+        "width": 1500,
+        "anchor": "center",
+        "padding": "32px",
+        "backgroundColor": "rgba(15, 23, 42, 0.55)",
+        "borderRadius": "24px",
+        "boxShadow": "0 18px 50px rgba(15, 23, 42, 0.45)"
+      },
+      "animation": {
+        "type": "slide",
+        "duration": 0.9,
+        "delay": 0.2,
+        "from": "left"
+      },
+      "startFrame": 120,
+      "endFrame": 360
+    },
+    {
+      "type": "text",
+      "content": "{{section_2}}",
+      "style": {
+        "fontSize": 44,
+        "fontFamily": "Inter, Arial, sans-serif",
+        "color": "#f8fafc",
+        "textAlign": "center",
+        "x": 960,
+        "y": 560,
+        "width": 1500,
+        "anchor": "center",
+        "padding": "32px",
+        "backgroundColor": "rgba(15, 23, 42, 0.55)",
+        "borderRadius": "24px",
+        "boxShadow": "0 18px 50px rgba(15, 23, 42, 0.45)"
+      },
+      "animation": {
+        "type": "slide",
+        "duration": 0.9,
+        "delay": 0.2,
+        "from": "right"
+      },
+      "startFrame": 240,
+      "endFrame": 480
+    },
+    {
+      "type": "text",
+      "content": "{{section_3}}",
+      "style": {
+        "fontSize": 44,
+        "fontFamily": "Inter, Arial, sans-serif",
+        "color": "#f8fafc",
+        "textAlign": "center",
+        "x": 960,
+        "y": 560,
+        "width": 1500,
+        "anchor": "center",
+        "padding": "32px",
+        "backgroundColor": "rgba(15, 23, 42, 0.55)",
+        "borderRadius": "24px",
+        "boxShadow": "0 18px 50px rgba(15, 23, 42, 0.45)"
+      },
+      "animation": {
+        "type": "slide",
+        "duration": 0.9,
+        "delay": 0.2,
+        "from": "left"
+      },
+      "startFrame": 360,
+      "endFrame": 540
+    },
+    {
+      "type": "text",
+      "content": "{{callToAction}}",
+      "style": {
+        "fontSize": 38,
+        "fontFamily": "Inter, Arial, sans-serif",
+        "color": "#e2e8f0",
+        "textAlign": "center",
+        "x": 960,
+        "y": 820,
+        "width": 1600,
+        "anchor": "center"
+      },
+      "animation": {
+        "type": "fade-in",
+        "duration": 0.8,
+        "delay": 0.2
+      },
+      "startFrame": 420,
+      "endFrame": 600
+    }
+  ]
+}
+

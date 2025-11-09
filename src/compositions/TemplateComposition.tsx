@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {CSSProperties} from 'react';
 import {
 	AbsoluteFill,
 	useCurrentFrame,
@@ -13,21 +13,17 @@ import {
 /**
  * Template types for track definitions
  */
+type TrackStyle = Partial<CSSProperties> & {
+	x?: number | string;
+	y?: number | string;
+	anchor?: 'center' | 'top-left';
+};
+
 interface TextTrack {
 	type: 'text';
 	content: string;
 	placeholder?: string;
-	style?: {
-		fontSize?: number;
-		fontFamily?: string;
-		color?: string;
-		fontWeight?: string;
-		textAlign?: 'left' | 'center' | 'right';
-		x?: number;
-		y?: number;
-		width?: number;
-		height?: number;
-	};
+	style?: TrackStyle;
 	animation?: {
 		type: 'fade-in' | 'slide';
 		duration?: number;
@@ -42,11 +38,7 @@ interface ImageTrack {
 	type: 'image';
 	src: string;
 	placeholder?: string;
-	style?: {
-		x?: number;
-		y?: number;
-		width?: number;
-		height?: number;
+	style?: TrackStyle & {
 		objectFit?: 'contain' | 'cover' | 'fill';
 	};
 	animation?: {
@@ -63,7 +55,7 @@ interface BackgroundTrack {
 	type: 'background';
 	src: string;
 	placeholder?: string;
-	style?: {
+	style?: TrackStyle & {
 		objectFit?: 'contain' | 'cover' | 'fill';
 	};
 	startFrame: number;
@@ -227,27 +219,61 @@ function TextTrackComponent({
 
 	const content = resolvePlaceholder(track.content, input);
 	const style = track.style || {};
+	const {
+		x,
+		y,
+		width,
+		height,
+		anchor = 'center',
+		transform: transformOverride,
+		...restStyle
+	} = style;
 
-	return (
-		<div
-			style={{
-				position: 'absolute',
-				fontSize: style.fontSize || 48,
-				fontFamily: style.fontFamily || 'Arial, sans-serif',
-				color: style.color || '#ffffff',
-				fontWeight: style.fontWeight || 'normal',
-				textAlign: style.textAlign || 'center',
-				left: style.x ?? '50%',
-				top: style.y ?? '50%',
-				width: style.width,
-				height: style.height,
-				transform: `translate(-50%, -50%) translateX(${animation.translateX}px) translateY(${animation.translateY}px)`,
-				opacity: animation.opacity,
-			}}
-		>
-			{content}
-		</div>
-	);
+	const numericFontSize =
+		typeof restStyle.fontSize === 'number'
+			? (restStyle.fontSize as number)
+			: typeof restStyle.fontSize === 'string'
+			? parseFloat(restStyle.fontSize as string)
+			: undefined;
+
+	const userTransform = typeof transformOverride === 'string' ? transformOverride : '';
+	const baseTransform =
+		anchor === 'top-left' ? '' : 'translate(-50%, -50%) ';
+	const animatedTransform = `translateX(${animation.translateX}px) translateY(${animation.translateY}px)`;
+
+	const computedStyle: CSSProperties = {
+		position: 'absolute',
+		left: x ?? '50%',
+		top: y ?? '50%',
+		width,
+		height,
+		opacity: animation.opacity,
+		whiteSpace: 'pre-wrap',
+		...restStyle,
+	};
+
+	if (computedStyle.fontSize === undefined) {
+		computedStyle.fontSize = numericFontSize || 48;
+	}
+	if (!computedStyle.fontFamily) {
+		computedStyle.fontFamily = 'Arial, sans-serif';
+	}
+	if (!computedStyle.color) {
+		computedStyle.color = '#ffffff';
+	}
+	if (!computedStyle.fontWeight) {
+		computedStyle.fontWeight = 'normal';
+	}
+	if (!computedStyle.textAlign) {
+		computedStyle.textAlign = 'center';
+	}
+	if (!computedStyle.lineHeight) {
+		computedStyle.lineHeight = numericFontSize ? `${numericFontSize * 1.2}px` : '1.2em';
+	}
+
+	computedStyle.transform = `${baseTransform}${userTransform ? `${userTransform} ` : ''}${animatedTransform}`;
+
+	return <div style={computedStyle}>{content}</div>;
 }
 
 /**
@@ -275,19 +301,37 @@ function ImageTrackComponent({
 	}
 
 	const style = track.style || {};
+	const {
+		x,
+		y,
+		width,
+		height,
+		anchor = 'top-left',
+		transform: userTransform,
+		...restStyle
+	} = style;
+
+	const {objectFit, ...otherStyle} = restStyle as {
+		objectFit?: 'contain' | 'cover' | 'fill';
+	} & Record<string, any>;
+
+	const baseTransform = anchor === 'center' ? 'translate(-50%, -50%) ' : '';
+	const animatedTransform = `translateX(${animation.translateX}px) translateY(${animation.translateY}px)`;
+	const combinedTransform = `${baseTransform}${typeof userTransform === 'string' ? `${userTransform} ` : ''}${animatedTransform}`;
 
 	return (
 		<Img
 			src={src}
 			style={{
 				position: 'absolute',
-				left: style.x ?? 0,
-				top: style.y ?? 0,
-				width: style.width,
-				height: style.height,
-				objectFit: style.objectFit || 'contain',
-				transform: `translateX(${animation.translateX}px) translateY(${animation.translateY}px)`,
+				left: x ?? (anchor === 'center' ? '50%' : 0),
+				top: y ?? (anchor === 'center' ? '50%' : 0),
+				width,
+				height,
+				objectFit: objectFit || 'contain',
+				transform: combinedTransform,
 				opacity: animation.opacity,
+				...otherStyle,
 			}}
 		/>
 	);
@@ -309,20 +353,51 @@ function BackgroundTrackComponent({
 		return null;
 	}
 
-	const src = resolvePlaceholder(track.src, input);
+	const rawSrc = resolvePlaceholder(track.src, input);
 	const style = track.style || {};
 
-	// Check if it's a video or image
-	const isVideo = src.match(/\.(mp4|webm|mov)$/i);
+	if (!rawSrc) {
+		return <AbsoluteFill style={{background: 'linear-gradient(135deg, #1f2937 0%, #0f172a 100%)'}} />;
+	}
+
+	const isVideo = rawSrc.match(/\.(mp4|webm|mov)$/i);
 
 	if (isVideo) {
 		return (
 			<Video
-				src={src}
+				src={rawSrc}
 				style={{
 					width: '100%',
 					height: '100%',
 					objectFit: style.objectFit || 'cover',
+					...style,
+				}}
+			/>
+		);
+	}
+
+	const isColor =
+		rawSrc.startsWith('#') ||
+		rawSrc.startsWith('rgb') ||
+		rawSrc.startsWith('hsl');
+	const isGradient =
+		rawSrc.startsWith('linear-gradient') ||
+		rawSrc.startsWith('radial-gradient') ||
+		rawSrc.startsWith('conic-gradient');
+
+	if (isColor || isGradient) {
+		return <AbsoluteFill style={{background: rawSrc, ...style}} />;
+	}
+
+	if (rawSrc.startsWith('data:') && rawSrc.includes('svg+xml')) {
+		return (
+			<Img
+				src={rawSrc}
+				style={{
+					width: '100%',
+					height: '100%',
+					objectFit: style.objectFit || 'cover',
+					...style,
 				}}
 			/>
 		);
@@ -330,11 +405,12 @@ function BackgroundTrackComponent({
 
 	return (
 		<Img
-			src={src}
+			src={rawSrc}
 			style={{
 				width: '100%',
 				height: '100%',
 				objectFit: style.objectFit || 'cover',
+				...style,
 			}}
 		/>
 	);

@@ -1,23 +1,24 @@
-import { useState } from 'react';
+import {useState} from 'react';
 import VideoForm from './components/VideoForm';
-import JobStatus from './components/JobStatus';
+import VideoResult from './components/VideoResult';
+import type {GenerateVideoResponse} from './services/api';
 import './App.css';
 
 function App() {
-  const [jobId, setJobId] = useState<string | null>(null);
+  const [result, setResult] = useState<GenerateVideoResponse | null>(null);
 
   return (
     <div className="app">
       <div className="container">
         <header className="header">
-          <h1>🎬 Video Generator</h1>
-          <p>Create dynamic videos with AI-powered content generation</p>
+          <h1>🎬 Video Generation App</h1>
+          <p>Turn your lesson topics into polished narrated videos with AI-drafted visuals.</p>
         </header>
 
-        {!jobId ? (
-          <VideoForm onJobCreated={setJobId} />
+        {!result ? (
+          <VideoForm onResult={setResult} />
         ) : (
-          <JobStatus jobId={jobId} onReset={() => setJobId(null)} />
+          <VideoResult result={result} onReset={() => setResult(null)} />
         )}
       </div>
     </div>

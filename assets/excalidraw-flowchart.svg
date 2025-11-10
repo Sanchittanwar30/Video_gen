@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="560" viewBox="0 0 560 560">
+  <rect width="560" height="560" rx="36" ry="36" fill="rgba(15,23,42,0.1)" stroke="#38bdf8" stroke-width="4" stroke-dasharray="14 12"/>
+  <g stroke="#38bdf8" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="160" y="80" width="240" height="80" rx="18" ry="18" fill="rgba(56,189,248,0.12)"/>
+    <path d="M280 160 L280 220"/>
+    <rect x="120" y="220" width="160" height="80" rx="18" ry="18" fill="rgba(56,189,248,0.08)"/>
+    <rect x="320" y="220" width="160" height="80" rx="18" ry="18" fill="rgba(56,189,248,0.08)"/>
+    <path d="M200 300 L200 360"/>
+    <path d="M360 300 L360 360"/>
+    <rect x="160" y="360" width="80" height="80" rx="18" ry="18" fill="rgba(56,189,248,0.08)"/>
+    <rect x="320" y="360" width="80" height="80" rx="18" ry="18" fill="rgba(56,189,248,0.08)"/>
+    <path d="M200 440 L200 460 L360 460 L360 440"/>
+  </g>
+  <g fill="#e2e8f0" font-family="Inter, Arial, sans-serif" font-size="20" text-anchor="middle">
+    <text x="280" y="128">Start</text>
+    <text x="200" y="268">Analyze</text>
+    <text x="400" y="268">Summarize</text>
+    <text x="200" y="408">Table</text>
+    <text x="360" y="408">Slide</text>
+    <text x="280" y="498" fill="#94a3b8">Deliver Story</text>
+  </g>
+</svg>
+

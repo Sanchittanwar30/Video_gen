@@ -1,8 +1,10 @@
 import {bundle} from '@remotion/bundler';
 import {renderMedia, selectComposition} from '@remotion/renderer';
 import axios from 'axios';
-import {existsSync, readFileSync, writeFileSync, mkdirSync} from 'fs';
+import {existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync} from 'fs';
 import {join, dirname, extname, resolve} from 'path';
+import {buildPresentationFromVideo} from '../server/services/presentation-builder';
+import type {PresentationBuildRequest, PresentationContent} from '../src/types/presentation';
 
 /**
  * Interface for render options
@@ -440,6 +442,137 @@ export async function renderTemplateToMp4(
 		throw error;
 	});
 
+	console.log(`Render complete! Output saved to: ${outPath}`);
+}
+
+export interface RenderOcrPresentationOptions extends PresentationBuildRequest {
+	outPath: string;
+}
+
+export async function renderOcrPresentation(options: RenderOcrPresentationOptions): Promise<void> {
+	console.log('Analyzing source video for OCR-driven presentation...');
+	const buildResult = await buildPresentationFromVideo(options);
+
+	const bundled = await bundle({
+		entryPoint: join(__dirname, '../src/index.tsx'),
+		webpackOverride: (config) => config,
+	});
+
+	const composition = await selectComposition({
+		serveUrl: bundled,
+		id: 'OcrPresentation',
+		inputProps: {
+			content: buildResult.content,
+		},
+	});
+
+	const renderOptions = {
+		composition: {
+			...composition,
+			durationInFrames: buildResult.durationInFrames,
+			fps: buildResult.fps,
+		},
+		serveUrl: bundled,
+		codec: 'h264',
+		width: buildResult.width,
+		height: buildResult.height,
+		outputLocation: options.outPath,
+		inputProps: {
+			content: buildResult.content,
+		},
+		calcMetadata: false,
+		onProgress: ({progress}: {progress: number}) => {
+			if (progress % 10 === 0 || progress === 100) {
+				console.log(`  Progress: ${progress.toFixed(1)}%`);
+			}
+		},
+	};
+
+	try {
+		console.log('Rendering presentation...');
+		await renderMedia(renderOptions as any);
+		console.log(`Render complete! Output saved to: ${options.outPath}`);
+	} finally {
+		if (buildResult.tempFiles) {
+			for (const file of buildResult.tempFiles) {
+				try {
+					unlinkSync(file);
+				} catch (error) {
+					console.warn(`Failed to cleanup temp file ${file}:`, (error as Error).message);
+				}
+			}
+		}
+	}
+}
+
+export interface RenderPresentationContentOptions {
+	content: PresentationContent;
+	outPath: string;
+	fps?: number;
+	width?: number;
+	height?: number;
+	introDurationSeconds?: number;
+	outroDurationSeconds?: number;
+}
+
+export async function renderPresentationContent({
+	content,
+	outPath,
+	fps: fpsOption,
+	width: widthOption,
+	height: heightOption,
+	introDurationSeconds = 4,
+	outroDurationSeconds = 5,
+}: RenderPresentationContentOptions): Promise<void> {
+	const fps = fpsOption ?? 30;
+	const width = widthOption ?? 1920;
+	const height = heightOption ?? 1080;
+
+	const introFrames = Math.floor(introDurationSeconds * fps);
+	const outroFrames = Math.floor(outroDurationSeconds * fps);
+	const slideFrames = content.chapters.reduce((sum, chapter) => {
+		const durationSeconds = Math.max(6, chapter.endSeconds - chapter.startSeconds);
+		return sum + Math.max(90, Math.floor(durationSeconds * fps));
+	}, 0);
+	const durationInFrames = introFrames + slideFrames + outroFrames;
+
+	const bundled = await bundle({
+		entryPoint: join(__dirname, '../src/index.tsx'),
+		webpackOverride: (config) => config,
+	});
+
+	const composition = await selectComposition({
+		serveUrl: bundled,
+		id: 'OcrPresentation',
+		inputProps: {
+			content,
+		},
+	});
+
+	const renderOptions = {
+		composition: {
+			...composition,
+			width,
+			height,
+			fps,
+			durationInFrames,
+		},
+		serveUrl: bundled,
+		codec: 'h264',
+		outputLocation: outPath,
+		inputProps: {
+			content,
+		},
+		calcMetadata: false,
+		onProgress: ({progress}: {progress: number}) => {
+			if (progress % 10 === 0 || progress === 100) {
+				console.log(`  Progress: ${progress.toFixed(1)}%`);
+			}
+		},
+	};
+
+	console.log('Rendering presentation from draft...');
+	await renderMedia(renderOptions as any);
 	console.log(`Render complete! Output saved to: ${outPath}`);
 }
 

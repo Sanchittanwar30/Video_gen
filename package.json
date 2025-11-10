@@ -13,6 +13,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "start:api": "ts-node server/index.ts",
     "dev:api": "ts-node-dev --respawn server/index.ts",
+
     "dev:frontend": "cd frontend && npm run dev",
     "postinstall": "patch-package"
   },

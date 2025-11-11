@@ -1,83 +1,101 @@
 import React from 'react';
-import {AbsoluteFill, Audio, Sequence, useVideoConfig} from 'remotion';
-import type {PresentationTheme} from '../types/presentation';
+import {Audio, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
 import {MotionBackground} from './MotionBackground';
+import type {PresentationTheme} from '../types/presentation';
 
-interface OutroSegmentProps {
+export interface OutroSegmentProps {
 	title: string;
 	callToAction?: string;
 	caption?: string;
-	theme: PresentationTheme;
-	audioTrack?: string;
 	backgroundMusic?: string;
+	theme: PresentationTheme;
 }
 
 export const OutroSegment: React.FC<OutroSegmentProps> = ({
 	title,
 	callToAction,
 	caption,
-	theme,
-	audioTrack,
 	backgroundMusic,
+	theme,
 }) => {
-	const {fps} = useVideoConfig();
+	const frame = useCurrentFrame();
+	const {durationInFrames, fps} = useVideoConfig();
+
+	const fadeIn = interpolate(frame, [0, fps], [0, 1], {
+		extrapolateLeft: 'clamp',
+		extrapolateRight: 'clamp',
+	});
+
+	const fadeOut = interpolate(
+		frame,
+		[durationInFrames - fps, durationInFrames],
+		[1, 0],
+		{
+			extrapolateLeft: 'clamp',
+			extrapolateRight: 'clamp',
+		}
+	);
+
+	const opacity = fadeIn * fadeOut;
 
 	return (
-		<AbsoluteFill>
-			<MotionBackground theme={theme} intensity={1.05} />
+		<div
+			style={{
+				position: 'absolute',
+				inset: 0,
+				fontFamily: theme.fontFamily,
+				color: '#fff',
+				display: 'flex',
+				alignItems: 'center',
+				justifyContent: 'center',
+			}}
+		>
+			<MotionBackground
+				primaryColor={theme.primaryColor}
+				secondaryColor={theme.secondaryColor}
+				accentColor={theme.accentColor}
+			/>
 			<div
 				style={{
-					width: '100%',
-					height: '100%',
-					display: 'flex',
-					flexDirection: 'column',
-					justifyContent: 'center',
-					alignItems: 'center',
 					textAlign: 'center',
-					padding: '0 140px',
-					color: '#f8fafc',
-					fontFamily: theme.fontFamily,
+					maxWidth: '70%',
+					zIndex: 1,
+					opacity,
 				}}
 			>
 				<h2
 					style={{
-						fontSize: 64,
-						fontWeight: 700,
-						marginBottom: 32,
+						fontSize: '2.6rem',
+						marginBottom: '1rem',
 					}}
 				>
 					{title}
 				</h2>
 				{callToAction ? (
-					<Sequence from={Math.floor(1.5 * fps)}>
-						<p
-							style={{
-								fontSize: 38,
-								fontWeight: 600,
-								color: theme.accentColor,
-								marginBottom: 24,
-							}}
-						>
-							{callToAction}
-						</p>
-					</Sequence>
+					<p
+						style={{
+							fontSize: '1.3rem',
+							marginBottom: '1.2rem',
+							color: 'rgba(255,255,255,0.9)',
+						}}
+					>
+						{callToAction}
+					</p>
 				) : null}
 				{caption ? (
-					<Sequence from={Math.floor(2.3 * fps)}>
-						<p
-							style={{
-								fontSize: 30,
-								color: '#cbd5f5',
-							}}
-						>
-							{caption}
-						</p>
-					</Sequence>
+					<p
+						style={{
+							fontSize: '0.95rem',
+							color: 'rgba(255,255,255,0.6)',
+							letterSpacing: 4,
+							textTransform: 'uppercase',
+						}}
+					>
+						{caption}
+					</p>
 				) : null}
 			</div>
-			{backgroundMusic ? <Audio src={backgroundMusic} volume={0.4} /> : null}
-			{audioTrack ? <Audio src={audioTrack} startFrom={0} /> : null}
-		</AbsoluteFill>
+			{backgroundMusic ? <Audio src={backgroundMusic} volume={0.2} /> : null}
+		</div>
 	);
 };
-

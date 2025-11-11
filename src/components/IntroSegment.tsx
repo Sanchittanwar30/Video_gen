@@ -1,81 +1,95 @@
 import React from 'react';
-import {AbsoluteFill, Audio, useVideoConfig} from 'remotion';
-import type {PresentationTheme} from '../types/presentation';
+import {Audio, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
 import {MotionBackground} from './MotionBackground';
+import type {PresentationTheme} from '../types/presentation';
 
-interface IntroSegmentProps {
+export interface IntroSegmentProps {
 	title: string;
 	subtitle?: string;
 	caption?: string;
-	theme: PresentationTheme;
-	audioTrack?: string;
 	backgroundMusic?: string;
+	theme: PresentationTheme;
 }
 
 export const IntroSegment: React.FC<IntroSegmentProps> = ({
 	title,
 	subtitle,
 	caption,
-	theme,
-	audioTrack,
 	backgroundMusic,
+	theme,
 }) => {
+	const frame = useCurrentFrame();
 	const {fps} = useVideoConfig();
 
+	const mainOpacity = interpolate(frame, [0, fps / 2, fps], [0, 1, 1], {
+		extrapolateLeft: 'clamp',
+		extrapolateRight: 'clamp',
+	});
+
+	const slideUp = interpolate(frame, [0, fps], [30, 0], {
+		extrapolateLeft: 'clamp',
+		extrapolateRight: 'clamp',
+	});
+
 	return (
-		<AbsoluteFill>
-			<MotionBackground theme={theme} intensity={1.15} />
+		<div
+			style={{
+				position: 'absolute',
+				inset: 0,
+				fontFamily: theme.fontFamily,
+				color: '#fff',
+				display: 'flex',
+				alignItems: 'center',
+				justifyContent: 'center',
+			}}
+		>
+			<MotionBackground
+				primaryColor={theme.primaryColor}
+				secondaryColor={theme.secondaryColor}
+				accentColor={theme.accentColor}
+			/>
 			<div
 				style={{
-					width: '100%',
-					height: '100%',
-					display: 'flex',
-					flexDirection: 'column',
-					alignItems: 'center',
-					justifyContent: 'center',
-					color: '#f8fafc',
-					fontFamily: theme.fontFamily,
 					textAlign: 'center',
-					padding: '0 140px',
+					maxWidth: '70%',
+					zIndex: 1,
+					opacity: mainOpacity,
+					transform: `translateY(${slideUp}px)`,
 				}}
 			>
 				<h1
 					style={{
-						fontSize: 92,
-						fontWeight: 800,
-						marginBottom: 24,
-						textShadow: '0 16px 40px rgba(15, 23, 42, 0.45)',
+						fontSize: '3.2rem',
+						marginBottom: '1rem',
 					}}
 				>
 					{title}
 				</h1>
 				{subtitle ? (
-					<h2
+					<p
 						style={{
-							fontSize: 48,
-							fontWeight: 500,
-							marginBottom: 32,
-							color: '#cbd5f5',
+							fontSize: '1.6rem',
+							marginBottom: '1.5rem',
+							color: 'rgba(255,255,255,0.85)',
 						}}
 					>
 						{subtitle}
-					</h2>
+					</p>
 				) : null}
 				{caption ? (
 					<p
 						style={{
-							fontSize: 32,
-							color: theme.accentColor,
-							letterSpacing: 1.2,
+							fontSize: '1rem',
+							textTransform: 'uppercase',
+							letterSpacing: 6,
+							color: 'rgba(255,255,255,0.65)',
 						}}
 					>
 						{caption}
 					</p>
 				) : null}
 			</div>
-			{backgroundMusic ? <Audio src={backgroundMusic} volume={0.4} /> : null}
-			{audioTrack ? <Audio src={audioTrack} startFrom={0} endAt={Math.floor(4 * fps)} /> : null}
-		</AbsoluteFill>
+			{backgroundMusic ? <Audio src={backgroundMusic} volume={0.18} /> : null}
+		</div>
 	);
 };
-

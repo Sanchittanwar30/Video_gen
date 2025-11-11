@@ -1,76 +1,55 @@
-import React, {useMemo} from 'react';
-import {AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate} from 'remotion';
-import type {PresentationTheme} from '../types/presentation';
+import React from 'react';
+import {interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
 
-interface MotionBackgroundProps {
-	theme: PresentationTheme;
-	intensity?: number;
+export interface MotionBackgroundProps {
+	primaryColor: string;
+	secondaryColor: string;
+	accentColor: string;
 }
 
-export const MotionBackground: React.FC<MotionBackgroundProps> = ({theme, intensity = 1}) => {
+export const MotionBackground: React.FC<MotionBackgroundProps> = ({primaryColor, secondaryColor, accentColor}) => {
 	const frame = useCurrentFrame();
-	const {fps} = useVideoConfig();
-	const loopDuration = fps * 6;
-	const loopFrame = frame % loopDuration;
+	const {durationInFrames} = useVideoConfig();
 
-	const angle = interpolate(loopFrame, [0, loopDuration], [0, 360]);
-	const shimmer = interpolate(loopFrame, [0, loopDuration / 2, loopDuration], [0.35, 0.75, 0.35]);
-
-	const orbs = useMemo(
-		() => [
-			{size: 560, offset: 0},
-			{size: 460, offset: loopDuration / 3},
-			{size: 520, offset: (loopDuration * 2) / 3},
-		],
-		[loopDuration]
-	);
+	const pulse = interpolate(frame, [0, durationInFrames], [0, 2 * Math.PI]);
 
 	return (
-		<>
-			<AbsoluteFill
+		<div
+			style={{
+				position: 'absolute',
+				inset: 0,
+				background: `radial-gradient(120% 120% at 50% 50%, ${secondaryColor}, ${primaryColor})`,
+				overflow: 'hidden',
+			}}
+		>
+			<div
 				style={{
-					background: `linear-gradient(${angle}deg, ${theme.primaryColor} 0%, ${theme.secondaryColor} 100%)`,
-					filter: `saturate(${1 + shimmer * 0.4 * intensity})`,
+					position: 'absolute',
+					top: '-20%',
+					left: '-20%',
+					width: '70%',
+					height: '70%',
+					borderRadius: '50%',
+					background: accentColor,
+					opacity: 0.18 + 0.05 * Math.sin(pulse),
+					transform: `scale(${1 + 0.04 * Math.sin(pulse / 2)})`,
+					filter: 'blur(80px)',
 				}}
 			/>
-			{orbs.map((orb, index) => {
-				const localFrame = (frame + orb.offset) % loopDuration;
-				const progress = interpolate(localFrame, [0, loopDuration], [0, 1]);
-				const translateX = interpolate(progress, [0, 0.5, 1], [-320, 280, -320]);
-				const translateY = interpolate(progress, [0, 0.5, 1], [260, -260, 260]);
-				const scale = 0.7 + shimmer * 0.3;
-
-				return (
-					<AbsoluteFill
-						key={index}
-						style={{
-							justifyContent: 'center',
-							alignItems: 'center',
-							mixBlendMode: 'screen',
-							opacity: 0.4 * intensity,
-						}}
-					>
-						<div
-							style={{
-								width: orb.size,
-								height: orb.size,
-								borderRadius: '50%',
-								background: `radial-gradient(circle, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 70%)`,
-								transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
-								transition: 'transform 80ms linear',
-							}}
-						/>
-					</AbsoluteFill>
-				);
-			})}
-			<AbsoluteFill
+			<div
 				style={{
-					backgroundImage:
-						'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.08), transparent 55%), radial-gradient(circle at 80% 80%, rgba(255,255,255,0.05), transparent 55%)',
-					opacity: 0.8,
+					position: 'absolute',
+					bottom: '-25%',
+					right: '-25%',
+					width: '75%',
+					height: '75%',
+					borderRadius: '50%',
+					background: '#ffffff',
+					opacity: 0.12 + 0.06 * Math.cos(pulse / 1.5),
+					transform: `scale(${1.05 + 0.03 * Math.sin(pulse)})`,
+					filter: 'blur(120px)',
 				}}
 			/>
-		</>
+		</div>
 	);
 };
-

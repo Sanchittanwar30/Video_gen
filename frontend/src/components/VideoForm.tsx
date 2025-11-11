@@ -28,20 +28,10 @@ export default function VideoForm({onResult}: VideoFormProps) {
 		try {
 			const payload: GenerateVideoPayload = {
 				topic: topic.trim(),
-				options: {
-					duration: Math.max(30, Math.round(durationSeconds)),
-				},
+				durationSeconds: Math.max(30, Math.round(durationSeconds)),
+				backgroundMusic: backgroundMusic.trim() || undefined,
+				notes: notes.trim() || undefined,
 			};
-
-			if (backgroundMusic.trim()) {
-				payload.presentation = {
-					backgroundMusic: backgroundMusic.trim(),
-				};
-			}
-
-			if (notes.trim()) {
-				payload.transcript = notes.trim();
-			}
 
 			const result = await api.generateVideo(payload);
 			onResult(result);

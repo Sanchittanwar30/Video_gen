@@ -1,13 +1,24 @@
+import React from 'react';
 import {Composition} from 'remotion';
 import {TemplateComposition} from './compositions/TemplateComposition';
 import {OcrPresentation} from './compositions/OcrPresentation';
+type TemplateCompositionProps = Parameters<typeof TemplateComposition>[0];
+type OcrPresentationProps = Parameters<typeof OcrPresentation>[0];
+
+const TemplateCompositionWrapper: React.FC<Record<string, unknown>> = (props) => (
+	<TemplateComposition {...(props as unknown as TemplateCompositionProps)} />
+);
+
+const OcrPresentationWrapper: React.FC<Record<string, unknown>> = (props) => (
+	<OcrPresentation {...(props as unknown as OcrPresentationProps)} />
+);
 
 export const RemotionRoot: React.FC = () => {
 	return (
 		<>
 			<Composition
 				id="TemplateComposition"
-				component={TemplateComposition}
+				component={TemplateCompositionWrapper}
 				durationInFrames={300}
 				fps={30}
 				width={1920}
@@ -19,7 +30,7 @@ export const RemotionRoot: React.FC = () => {
 			/>
 			<Composition
 				id="OcrPresentation"
-				component={OcrPresentation}
+				component={OcrPresentationWrapper}
 				durationInFrames={600}
 				fps={30}
 				width={1920}

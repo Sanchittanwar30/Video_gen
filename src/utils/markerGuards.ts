@@ -1,10 +1,13 @@
-import type {ChapterMarker} from '../types/presentation';
+import type { ChapterMarker } from '../types/presentation';
 
 export const isDiagramMarker = (
-	marker: ChapterMarker
-): marker is Extract<ChapterMarker, {type: 'diagram'}> => marker.type === 'diagram';
+	marker: ChapterMarker | undefined
+): marker is Extract<ChapterMarker, { type: 'diagram' }> => {
+	return marker?.type === 'diagram';
+};
 
 export const isFigureMarker = (
-	marker: ChapterMarker
-): marker is Extract<ChapterMarker, {type: 'figure'}> => marker.type === 'figure';
-
+	marker: ChapterMarker | undefined
+): marker is Extract<ChapterMarker, { type: 'figure' }> => {
+	return marker?.type === 'figure';
+};

@@ -515,6 +515,11 @@ export interface RenderPresentationContentOptions {
 	outroDurationSeconds?: number;
 }
 
+export interface RenderPresentationResult {
+	outputLocation: string;
+	durationInFrames: number;
+}
+
 export async function renderPresentationContent({
 	content,
 	outPath,
@@ -523,7 +528,7 @@ export async function renderPresentationContent({
 	height: heightOption,
 	introDurationSeconds = 4,
 	outroDurationSeconds = 5,
-}: RenderPresentationContentOptions): Promise<void> {
+}: RenderPresentationContentOptions): Promise<RenderPresentationResult> {
 	const fps = fpsOption ?? 30;
 	const width = widthOption ?? 1920;
 	const height = heightOption ?? 1080;
@@ -574,6 +579,11 @@ export async function renderPresentationContent({
 	console.log('Rendering presentation from draft...');
 	await renderMedia(renderOptions as any);
 	console.log(`Render complete! Output saved to: ${outPath}`);
+
+	return {
+		outputLocation: outPath,
+		durationInFrames,
+	};
 }
 
 /**

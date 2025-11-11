@@ -92,25 +92,52 @@ router.post('/generate-content', aiLimiter, async (req: Request, res: Response) 
 Additional context:
 ${description}
 
-Requirements:
-- Generate a compelling title (max 60 characters)
-- Generate a subtitle/description (max 120 characters)
-- Suggest a background image URL (use Unsplash or similar)
-- Provide a logo image URL (placeholder is acceptable)
-- Draft a short voiceover script that can be narrated in ${duration} seconds
-- Style: ${style}`;
+Return ONLY JSON with the following shape:
+{
+  "title": string;
+  "subtitle": string;
+  "backgroundImage"?: string;
+  "logoImage"?: string;
+  "voiceoverScript"?: string;
+  "voiceoverAudio"?: string;
+  "sections": Array<{
+    "heading"?: string;
+    "body"?: string;
+    "title"?: string;
+    "summary"?: string;
+    "content"?: string;
+    "text"?: string;
+  }>;
+}`;
 
-    const geminiText = await callGemini(prompt);
-    let rawText = geminiText.trim();
-    if (rawText.startsWith('```')) {
-      rawText = rawText.replace(/^```(json)?/i, '').replace(/```$/i, '').trim();
+    interface GeminiAiResponse {
+      title?: string;
+      subtitle?: string;
+      backgroundImage?: string;
+      logoImage?: string;
+      voiceoverScript?: string;
+      voiceoverAudio?: string;
+      sections?: Array<Record<string, unknown>>;
     }
-    let generated: any;
-    try {
-      generated = JSON.parse(rawText);
-    } catch (err) {
-      console.error('Failed to parse Gemini response as JSON:', geminiText);
-      return res.status(502).json({ error: 'Invalid response from Gemini', message: 'AI response was not valid JSON.' });
+
+    const generated = await callGemini<GeminiAiResponse>({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          role: 'user',
+          parts: [{text: prompt}],
+        },
+      ],
+      safetySettings: [
+        {category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH'},
+        {category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH'},
+        {category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH'},
+        {category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH'},
+      ],
+    });
+
+    if (!generated || typeof generated !== 'object') {
+      return res.status(502).json({error: 'Invalid response from Gemini', message: 'AI response was empty.'});
     }
 
     // Build template

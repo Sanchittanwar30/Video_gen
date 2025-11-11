@@ -46,6 +46,7 @@ export interface ChapterSlide {
 	table?: ChapterTable;
 	voiceoverSrc?: string;
 	markers?: ChapterMarker[];
+	durationSeconds?: number;
 }
 
 export interface PresentationTheme {

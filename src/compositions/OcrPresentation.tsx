@@ -7,75 +7,52 @@ import type {PresentationContent} from '../types/presentation';
 
 export interface OcrPresentationProps {
 	content: PresentationContent;
-	introDurationSeconds?: number;
-	outroDurationSeconds?: number;
 }
 
-export const OcrPresentation: React.FC<OcrPresentationProps> = ({
-	content,
-	introDurationSeconds = 4,
-	outroDurationSeconds = 5,
-}) => {
+export const OcrPresentation: React.FC<OcrPresentationProps> = ({content}) => {
 	const {fps} = useVideoConfig();
-	const introFrames = Math.floor(introDurationSeconds * fps);
-	const outroFrames = Math.floor(outroDurationSeconds * fps);
+	const introDuration = Math.floor(fps * 4);
+	const outroDuration = Math.floor(fps * 5);
 
-	const slideOffsets: number[] = [];
-	let runningOffset = introFrames;
-
-	content.chapters.forEach((chapter, index) => {
-		const slideDuration = Math.max(90, Math.floor((chapter.endSeconds - chapter.startSeconds) * fps));
-		slideOffsets.push(runningOffset);
-		runningOffset += slideDuration;
-	});
-
-	const outroOffset = runningOffset;
+	let currentStart = introDuration;
 
 	return (
 		<AbsoluteFill style={{backgroundColor: content.theme.backgroundColor}}>
-			<Sequence name="Intro" durationInFrames={introFrames}>
+			<Sequence durationInFrames={introDuration}>
 				<IntroSegment
 					title={content.titleText}
 					subtitle={content.subtitleText}
 					caption={content.introCaption}
-					theme={content.theme}
-					audioTrack={content.audioTrack}
 					backgroundMusic={content.backgroundMusic}
+					theme={content.theme}
 				/>
 			</Sequence>
 
-			{content.chapters.map((chapter, index) => (
-				<Sequence
-					key={chapter.id}
-					name={`Slide-${index + 1}`}
-					from={slideOffsets[index]}
-					durationInFrames={
-						index === content.chapters.length - 1
-							? outroOffset - slideOffsets[index]
-							: slideOffsets[index + 1] - slideOffsets[index]
-					}
-				>
-					<AnimatedSlide
-						index={index}
-						slide={chapter}
-						showTable={Boolean(chapter.table)}
-						svgOverlay={content.flowchartSvg}
-						theme={content.theme}
-					/>
-				</Sequence>
-			))}
+			{content.chapters.map((chapter) => {
+				const duration = Math.max(1, Math.floor((chapter.endSeconds - chapter.startSeconds) * fps));
+				const sequence = (
+					<Sequence key={chapter.id} from={currentStart} durationInFrames={duration}>
+						<AnimatedSlide
+							chapter={chapter}
+							theme={content.theme}
+							flowchartSvg={content.flowchartSvg}
+							backgroundMusic={content.backgroundMusic}
+						/>
+					</Sequence>
+				);
+				currentStart += duration;
+				return sequence;
+			})}
 
-			<Sequence name="Outro" from={outroOffset} durationInFrames={outroFrames}>
+			<Sequence from={currentStart} durationInFrames={outroDuration}>
 				<OutroSegment
 					title={content.titleText}
 					callToAction={content.callToAction}
 					caption={content.outroCaption}
-					theme={content.theme}
-					audioTrack={content.audioTrack}
 					backgroundMusic={content.backgroundMusic}
+					theme={content.theme}
 				/>
 			</Sequence>
 		</AbsoluteFill>
 	);
 };
-

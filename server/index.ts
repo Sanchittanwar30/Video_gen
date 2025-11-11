@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import path from 'path';
 import { config } from './config';
 import videoRoutes from './routes/video';
 import aiRoutes from './routes/ai';
@@ -13,6 +14,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/ai', aiRoutes);
+app.use('/output', express.static(path.join(process.cwd(), 'output')));
 
 // Health check endpoint
 app.get('/health', (req: Request, res: Response) => {

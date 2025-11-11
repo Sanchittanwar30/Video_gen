@@ -1,303 +1,188 @@
 import React from 'react';
-import {AbsoluteFill, Sequence, useVideoConfig, Audio, spring, useCurrentFrame, Img} from 'remotion';
-import {AnimatedTable} from './AnimatedTable';
-import {ExcalidrawOverlay} from './ExcalidrawOverlay';
-import type {ChapterSlide, PresentationTheme} from '../types/presentation';
-import {MotionBackground} from './MotionBackground';
-import {isDiagramMarker, isFigureMarker} from '../utils/markerGuards';
+import {
+	AbsoluteFill,
+	Audio,
+	interpolate,
+	spring,
+	useCurrentFrame,
+	useVideoConfig,
+} from 'remotion';
+import { AnimatedTable } from './AnimatedTable';
+import { ExcalidrawOverlay } from './ExcalidrawOverlay';
+import { MotionBackground } from './MotionBackground';
+import type { ChapterSlide, PresentationTheme } from '../types/presentation';
+import { isDiagramMarker, isFigureMarker } from '../utils/markerGuards';
 
 export interface AnimatedSlideProps {
-	slide: ChapterSlide;
-	index: number;
-	svgOverlay?: string;
-	showTable?: boolean;
+	chapter: ChapterSlide;
 	theme: PresentationTheme;
+	flowchartSvg?: string;
+	backgroundMusic?: string;
 }
 
-const BULLET_DELAY_FRAMES = 12;
+const BULLET_STAGGER = 12;
 
-export const AnimatedSlide: React.FC<AnimatedSlideProps> = ({slide, index, svgOverlay, showTable, theme}) => {
+export const AnimatedSlide: React.FC<AnimatedSlideProps> = ({
+	chapter,
+	theme,
+	flowchartSvg,
+	backgroundMusic,
+}) => {
 	const frame = useCurrentFrame();
-	const {fps} = useVideoConfig();
-	const slideDurationFrames = (slide.endSeconds - slide.startSeconds) * fps;
-	const bulletFrameOffset = Math.max(0, slideDurationFrames / Math.max(1, slide.bullets.length) - BULLET_DELAY_FRAMES);
-	const markers = slide.markers ?? [];
-	const diagramMarkers = markers.filter(isDiagramMarker);
-	const figureMarkers = markers.filter(isFigureMarker);
+	const { fps } = useVideoConfig();
+
+	const showTitle = interpolate(frame, [0, fps / 2], [0, 1], {
+		extrapolateLeft: 'clamp',
+		extrapolateRight: 'clamp',
+	});
+
+	const bullets = chapter.bullets ?? [];
+
+	const tableMarker = chapter.markers?.find((marker) => marker.type === 'table');
+	const diagramMarker = chapter.markers?.find((marker) => marker.type === 'diagram');
+	const figureMarker = chapter.markers?.find((marker) => marker.type === 'figure');
 
 	return (
-		<AbsoluteFill>
-			<MotionBackground theme={theme} intensity={0.85} />
-			{slide.voiceoverSrc ? (
-				<Sequence>
-					<Audio src={slide.voiceoverSrc} volume={0.96} />
-				</Sequence>
-			) : null}
+		<AbsoluteFill
+			style={{
+				fontFamily: theme.fontFamily,
+				color: theme.backgroundColor,
+				padding: '4rem 5rem',
+			}}
+		>
+			<MotionBackground
+				primaryColor={theme.primaryColor}
+				secondaryColor={theme.secondaryColor}
+				accentColor={theme.accentColor}
+			/>
 			<div
 				style={{
-					width: '100%',
-					maxWidth: 1440,
-					display: 'flex',
-					gap: 48,
-					padding: '120px 160px 140px',
-					color: '#f8fafc',
-					fontFamily: theme.fontFamily,
 					position: 'relative',
+					zIndex: 2,
+					display: 'flex',
+					flexDirection: 'column',
+					height: '100%',
 				}}
 			>
-				<div style={{flex: 1}}>
+				<header
+					style={{
+						marginBottom: '2rem',
+						opacity: showTitle,
+						transform: `translateY(${20 * (1 - showTitle)}px)`,
+					}}
+				>
 					<h2
 						style={{
-							marginTop: 0,
-							marginBottom: 24,
-							fontSize: 72,
-							fontWeight: 700,
-							textShadow: '0 12px 30px rgba(15, 23, 42, 0.45)',
+							fontSize: '2.6rem',
+							marginBottom: '0.75rem',
+							color: '#fff',
 						}}
 					>
-						{slide.title}
+						{chapter.title}
 					</h2>
 					<p
 						style={{
-							fontSize: 32,
-							lineHeight: 1.35,
-							color: '#cbd5f5',
-							marginBottom: 32,
-							whiteSpace: 'pre-wrap',
+							fontSize: '1.2rem',
+							color: 'rgba(255,255,255,0.84)',
+							maxWidth: '60ch',
 						}}
 					>
-						{slide.summary}
+						{chapter.summary}
 					</p>
+				</header>
 
-					<ul
-						style={{
-							listStyle: 'none',
-							padding: 0,
-							margin: 0,
-							display: 'flex',
-							flexDirection: 'column',
-							gap: 18,
-						}}
-					>
-						{slide.bullets.map((bullet, bulletIndex) => (
-							<Sequence
-								key={bulletIndex}
-								from={Math.floor(bulletIndex * bulletFrameOffset)}
-								durationInFrames={Math.floor(slideDurationFrames - bulletIndex * bulletFrameOffset)}
-							>
+				<section
+					style={{
+						display: 'grid',
+						gridTemplateColumns: '1fr 1fr',
+						gap: '2rem',
+						flex: 1,
+					}}
+				>
+					<ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+						{bullets.map((bullet, index) => {
+							const progress = spring({
+								fps,
+								frame: frame - index * BULLET_STAGGER,
+								config: {
+									damping: 200,
+									mass: 0.4,
+								},
+							});
+							return (
 								<li
+									key={index}
 									style={{
+										marginBottom: '1.1rem',
+										fontSize: '1.1rem',
 										display: 'flex',
 										alignItems: 'flex-start',
-										gap: 16,
-										fontSize: 30,
-										lineHeight: 1.4,
-										color: '#e2e8f0',
-										fontFamily: theme.fontFamily,
+										opacity: progress,
+										transform: `translateY(${12 * (1 - progress)}px)`,
 									}}
 								>
 									<span
 										style={{
-											width: 12,
-											height: 12,
-											marginTop: 16,
+											display: 'inline-block',
+											width: 10,
+											height: 10,
 											borderRadius: '50%',
-											backgroundColor: '#38bdf8',
-											boxShadow: '0 0 12px rgba(56, 189, 248, 0.7)',
+											background: theme.accentColor,
+											marginRight: 12,
+											marginTop: 8,
+											boxShadow: '0 0 12px rgba(255,255,255,0.4)',
 										}}
 									/>
-									<span style={{whiteSpace: 'pre-wrap'}}>{bullet}</span>
+									<span style={{ color: 'rgba(255,255,255,0.92)' }}>
+										{bullet}
+									</span>
 								</li>
-							</Sequence>
-						))}
+							);
+						})}
 					</ul>
-				</div>
 
-				<div style={{flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-					{showTable && slide.table ? (
-						<Sequence from={Math.floor(slideDurationFrames * 0.2)}>
-							<AnimatedTable table={slide.table} durationInFrames={Math.floor(slideDurationFrames * 0.75)} />
-						</Sequence>
-					) : null}
-					{svgOverlay ? (
-						<Sequence from={Math.floor(slideDurationFrames * 0.25)}>
-							<ExcalidrawOverlay svgMarkup={svgOverlay} />
-						</Sequence>
-					) : null}
 					<div
 						style={{
-							position: 'absolute',
-							top: '15%',
-							right: '5%',
-							width: 520,
 							display: 'flex',
 							flexDirection: 'column',
-							gap: 24,
+							gap: '1.5rem',
+							alignItems: 'center',
+							justifyContent: 'center',
 						}}
 					>
-						{diagramMarkers.map((marker, idx) => (
-							<Sequence
-								key={`diagram-${idx}`}
-								from={Math.floor(slideDurationFrames * 0.3) + idx * 10}
-								durationInFrames={Math.floor(slideDurationFrames * 0.5)}
+						{chapter.table ? <AnimatedTable table={chapter.table} /> : null}
+
+						{isDiagramMarker(diagramMarker) && flowchartSvg ? (
+							<ExcalidrawOverlay svgMarkup={flowchartSvg} title={diagramMarker.concept} />
+						) : null}
+
+						{isFigureMarker(figureMarker) && figureMarker.assetUrl ? (
+							<figure
+								style={{
+									width: '80%',
+									margin: 0,
+									textAlign: 'center',
+									color: 'rgba(255,255,255,0.9)',
+								}}
 							>
-								<DiagramCard marker={marker} theme={theme} />
-							</Sequence>
-						))}
-						{figureMarkers.map((marker, idx) => (
-							<Sequence
-								key={`figure-${idx}`}
-								from={Math.floor(slideDurationFrames * 0.35) + idx * 15}
-								durationInFrames={Math.floor(slideDurationFrames * 0.4)}
-							>
-								<FigureCard marker={marker} theme={theme} />
-							</Sequence>
-						))}
+								<img
+									src={figureMarker.assetUrl}
+									style={{
+										width: '100%',
+										borderRadius: 16,
+										boxShadow: '0 12px 30px rgba(15,23,42,0.4)',
+									}}
+								/>
+								<figcaption style={{ marginTop: 10, fontSize: '0.95rem' }}>
+									{figureMarker.caption}
+								</figcaption>
+							</figure>
+						) : null}
 					</div>
-				</div>
+				</section>
 			</div>
+			{chapter.voiceoverSrc ? <Audio src={chapter.voiceoverSrc} /> : null}
+			{backgroundMusic ? <Audio src={backgroundMusic} volume={0.15} /> : null}
 		</AbsoluteFill>
 	);
 };
-
-const DiagramCard: React.FC<{marker: Extract<ChapterMarker, {type: 'diagram'}>; theme: PresentationTheme}> = ({
-	marker,
-	theme,
-}) => {
-	const frame = useCurrentFrame();
-	const {fps} = useVideoConfig();
-	const progress = spring({
-		frame,
-		fps,
-		config: {
-			damping: 200,
-			mass: 0.6,
-		},
-	});
-
-	return (
-		<div
-			style={{
-				padding: '24px 28px',
-				borderRadius: 24,
-				background: 'rgba(15, 23, 42, 0.68)',
-				boxShadow: '0 18px 40px rgba(15, 23, 42, 0.45)',
-				border: `1px solid ${theme.accentColor}33`,
-				transform: `translateY(${20 - progress * 20}px)`,
-				opacity: progress,
-				backdropFilter: 'blur(6px)',
-			}}
-		>
-			<p
-				style={{
-					textTransform: 'uppercase',
-					fontSize: 14,
-					letterSpacing: 4,
-					color: theme.accentColor,
-					marginBottom: 12,
-				}}
-			>
-				Diagram
-			</p>
-			<h3
-				style={{
-					fontSize: 30,
-					margin: 0,
-					marginBottom: 12,
-					color: '#f8fafc',
-				}}
-			>
-				{marker.concept}
-			</h3>
-			<p
-				style={{
-					fontSize: 22,
-					color: '#cbd5f5',
-					lineHeight: 1.35,
-					margin: 0,
-				}}
-			>
-				{marker.description ?? 'Visualize how each concept relates to the next.'}
-			</p>
-		</div>
-	);
-};
-
-const FigureCard: React.FC<{marker: Extract<ChapterMarker, {type: 'figure'}>; theme: PresentationTheme}> = ({
-	marker,
-	theme,
-}) => {
-	const frame = useCurrentFrame();
-	const {fps} = useVideoConfig();
-	const progress = spring({
-		frame,
-		fps,
-		config: {
-			damping: 220,
-			mass: 0.7,
-		},
-	});
-
-	return (
-		<div
-			style={{
-				borderRadius: 24,
-				background: 'rgba(15, 23, 42, 0.68)',
-				boxShadow: '0 18px 40px rgba(15, 23, 42, 0.45)',
-				border: `1px solid ${theme.accentColor}33`,
-				overflow: 'hidden',
-				transform: `translateY(${24 - progress * 24}px)`,
-				opacity: progress,
-				backdropFilter: 'blur(6px)',
-			}}
-		>
-			{marker.assetUrl ? (
-				<Img
-					src={marker.assetUrl}
-					style={{
-						width: '100%',
-						height: 260,
-						objectFit: 'cover',
-					}}
-				/>
-			) : (
-				<div
-					style={{
-						height: 260,
-						display: 'flex',
-						alignItems: 'center',
-						justifyContent: 'center',
-						color: '#94a3b8',
-						fontSize: 24,
-					}}
-				>
-					Illustration Placeholder
-				</div>
-			)}
-
-			<div style={{padding: '18px 24px'}}>
-				<p
-					style={{
-						fontSize: 14,
-						letterSpacing: 3,
-						textTransform: 'uppercase',
-						color: theme.accentColor,
-						marginBottom: 8,
-					}}
-				>
-					Figure
-				</p>
-				<p
-					style={{
-						fontSize: 22,
-						margin: 0,
-						color: '#f8fafc',
-					}}
-				>
-					{marker.caption}
-				</p>
-			</div>
-		</div>
-	);
-};
-

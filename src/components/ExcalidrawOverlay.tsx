@@ -1,51 +1,57 @@
-import React, {useMemo} from 'react';
-import {useCurrentFrame, useVideoConfig, spring} from 'remotion';
+import React from 'react';
+import {interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
 
 export interface ExcalidrawOverlayProps {
 	svgMarkup: string;
-	width?: number;
-	height?: number;
+	title?: string;
 }
 
-export const ExcalidrawOverlay: React.FC<ExcalidrawOverlayProps> = ({svgMarkup, width = 560, height = 560}) => {
+export const ExcalidrawOverlay: React.FC<ExcalidrawOverlayProps> = ({svgMarkup, title}) => {
 	const frame = useCurrentFrame();
 	const {fps} = useVideoConfig();
 
-	const enter = spring({
-		frame,
-		fps,
-		config: {
-			damping: 200,
-			mass: 0.6,
-		},
+	const opacity = interpolate(frame, [0, fps], [0, 1], {
+		extrapolateLeft: 'clamp',
+		extrapolateRight: 'clamp',
 	});
 
-	const overlayStyles = useMemo(
-		() => ({
-			width,
-			height,
-			opacity: enter,
-			transform: `scale(${0.85 + enter * 0.15})`,
-			boxShadow: '0 20px 40px rgba(15, 23, 42, 0.35)',
-			borderRadius: 24,
-			backgroundColor: 'rgba(15, 23, 42, 0.35)',
-			padding: 24,
-			backdropFilter: 'blur(6px)',
-		}),
-		[enter, width, height]
-	);
+	const translateY = interpolate(frame, [0, fps], [30, 0], {
+		extrapolateLeft: 'clamp',
+		extrapolateRight: 'clamp',
+	});
 
 	return (
-		<div style={overlayStyles}>
+		<div
+			style={{
+				position: 'relative',
+				width: '60%',
+				margin: '0 auto',
+				textAlign: 'center',
+			}}
+		>
+			{title ? (
+				<h3
+					style={{
+						marginBottom: 12,
+						color: 'rgba(17,24,39,0.9)',
+					}}
+				>
+					{title}
+				</h3>
+			) : null}
 			<div
 				style={{
-					width: '100%',
-					height: '100%',
-					overflow: 'hidden',
+					position: 'relative',
+					padding: '1.25rem',
+					background: 'rgba(255,255,255,0.92)',
+					borderRadius: 18,
+					boxShadow: '0 12px 32px rgba(15,23,42,0.22)',
+					opacity,
+					transform: `translateY(${translateY}px)`,
+					transition: 'box-shadow 0.4s ease',
 				}}
 				dangerouslySetInnerHTML={{__html: svgMarkup}}
 			/>
 		</div>
 	);
 };
-

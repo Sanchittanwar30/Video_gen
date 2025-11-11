@@ -1,97 +1,83 @@
-import React, {useMemo} from 'react';
-import {useCurrentFrame, useVideoConfig, spring} from 'remotion';
+import React from 'react';
+import {spring, useCurrentFrame, useVideoConfig} from 'remotion';
 import type {ChapterTable} from '../types/presentation';
+
+const ROW_STAGGER = 12;
 
 export interface AnimatedTableProps {
 	table: ChapterTable;
-	durationInFrames?: number;
 }
 
-const ROW_REVEAL_FRAMES = 12;
-
-export const AnimatedTable: React.FC<AnimatedTableProps> = ({table, durationInFrames}) => {
+export const AnimatedTable: React.FC<AnimatedTableProps> = ({table}) => {
 	const frame = useCurrentFrame();
 	const {fps} = useVideoConfig();
-
-	const rowsWithTiming = useMemo(() => {
-		const rows = table.rows ?? [];
-		return rows.map((row, index) => {
-			const start = index * ROW_REVEAL_FRAMES;
-			const end = durationInFrames ? Math.min(durationInFrames, start + ROW_REVEAL_FRAMES * 2) : undefined;
-			return {row, index, startFrame: start, endFrame: end};
-		});
-	}, [table.rows, durationInFrames]);
 
 	return (
 		<div
 			style={{
-				width: '90%',
+				padding: '1.5rem',
+				borderRadius: 16,
+				backgroundColor: 'rgba(255,255,255,0.92)',
+				boxShadow: '0 8px 32px rgba(15,23,42,0.22)',
+				color: '#0f172a',
+				width: '70%',
 				margin: '0 auto',
-				backgroundColor: 'rgba(15, 23, 42, 0.55)',
-				borderRadius: 24,
-				padding: '24px 32px',
-				boxShadow: '0 18px 50px rgba(15, 23, 42, 0.35)',
-				backdropFilter: 'blur(6px)',
 			}}
 		>
 			{table.title ? (
 				<h3
 					style={{
-						fontSize: 36,
-						fontFamily: 'Inter, Arial, sans-serif',
-						color: '#f8fafc',
-						textAlign: 'left',
-						marginTop: 0,
-						marginBottom: 24,
+						marginBottom: 12,
+						fontSize: '1.4rem',
+						textAlign: 'center',
 					}}
 				>
 					{table.title}
 				</h3>
 			) : null}
-
 			<table
 				style={{
 					width: '100%',
 					borderCollapse: 'collapse',
+					tableLayout: 'fixed',
 				}}
 			>
 				<tbody>
-					{rowsWithTiming.map(({row, index, startFrame}) => {
+					{table.rows.map((row, index) => {
 						const progress = spring({
-							frame: Math.max(0, frame - startFrame),
 							fps,
+							frame: frame - index * ROW_STAGGER,
 							config: {
 								damping: 200,
 								mass: 0.4,
 							},
 						});
 
-						const isHeader = row.cells.some((cell) => cell.isHeader);
-						const isHighlighted = table.highlightedRowIndex === index;
+						const isHighlighted =
+							typeof table.highlightedRowIndex === 'number' &&
+							index === table.highlightedRowIndex;
 
 						return (
 							<tr
 								key={index}
 								style={{
-									transform: `translateY(${20 - progress * 20}px)`,
 									opacity: progress,
-									backgroundColor: isHighlighted ? 'rgba(56, 189, 248, 0.18)' : 'transparent',
-									transition: 'background-color 300ms ease',
+									transform: `translateY(${16 * (1 - progress)}px)`,
+									transition: 'background 0.4s ease',
+									backgroundColor: isHighlighted
+										? 'rgba(59,130,246,0.16)'
+										: 'transparent',
 								}}
 							>
-								{row.cells.map((cell, cellIndex) => (
+								{row.cells.map((cell, cIndex) => (
 									<td
-										key={cellIndex}
+										key={cIndex}
 										style={{
-											padding: '16px 18px',
-											color: '#e2e8f0',
-											fontSize: isHeader ? 28 : 26,
-											fontFamily: 'Inter, Arial, sans-serif',
-											fontWeight: cell.isHeader ? 700 : 400,
-											textAlign: cellIndex === 0 ? 'left' : 'center',
-											borderBottom: '1px solid rgba(148, 163, 184, 0.35)',
-											whiteSpace: 'pre-wrap',
-											lineHeight: 1.35,
+											border: '1px solid rgba(148,163,184,0.4)',
+											padding: '0.65rem 0.9rem',
+											fontWeight: cell.isHeader ? 600 : 400,
+											fontSize: cell.isHeader ? '1.05rem' : '0.95rem',
+											textAlign: cell.isHeader ? 'center' : 'left',
 										}}
 									>
 										{cell.value}

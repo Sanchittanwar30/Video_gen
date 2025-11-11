@@ -1,52 +1,54 @@
-import './VideoResult.css';
+import React from 'react';
 import type {GenerateVideoResponse} from '../services/api';
+import './VideoResult.css';
 
-interface VideoResultProps {
-  result: GenerateVideoResponse;
-  onReset: () => void;
+export interface VideoResultProps {
+	result: GenerateVideoResponse;
+	onReset: () => void;
 }
 
-export default function VideoResult({result, onReset}: VideoResultProps) {
-  return (
-    <div className="video-result-card">
-      <div className="result-header">
-        <h2>Your lesson is ready</h2>
-        <button onClick={onReset} className="reset-button">
-          Create Another
-        </button>
-      </div>
+export const VideoResult: React.FC<VideoResultProps> = ({result, onReset}) => {
+	return (
+		<div className="video-result">
+			<div className="video-result__header">
+				<div>
+					<h2>Generated Video</h2>
+					<p className="video-result__subhead">Your lesson has been rendered successfully.</p>
+				</div>
+				<button type="button" onClick={onReset} className="video-result__reset">
+					Generate Another
+				</button>
+			</div>
 
-      <div className="video-player-wrapper">
-        <video src={result.videoUrl} controls className="video-player">
-          Your browser does not support the video tag.
-        </video>
-      </div>
+			<div className="video-result__player">
+				<video controls>
+					<source src={result.videoUrl} type="video/mp4" />
+					Your browser does not support the video tag.
+				</video>
+			</div>
 
-      <div className="result-actions">
-        <a href={result.videoUrl} target="_blank" rel="noopener noreferrer" className="primary-button">
-          Open in new tab
-        </a>
-        <a href={result.videoUrl} download className="secondary-button">
-          Download video
-        </a>
-        {result.transcriptUrl ? (
-          <a href={result.transcriptUrl} target="_blank" rel="noopener noreferrer" className="secondary-button">
-            Transcript
-          </a>
-        ) : null}
-      </div>
+			<div className="video-result__actions">
+				<a href={result.videoUrl} download>
+					Download Video
+				</a>
+				<a href={result.videoUrl} target="_blank" rel="noopener noreferrer">
+					Open in New Tab
+				</a>
+				{result.transcriptUrl ? (
+					<a href={result.transcriptUrl} target="_blank" rel="noopener noreferrer">
+						Download Transcript
+					</a>
+				) : null}
+			</div>
 
-      <div className="meta">
-        <div>
-          <span className="meta-label">Job ID</span>
-          <span className="meta-value">{result.jobId}</span>
-        </div>
-        <div>
-          <span className="meta-label">Storage Path</span>
-          <span className="meta-value">{result.remotePath}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
+			{result.transcript ? (
+				<div className="video-result__transcript">
+					<h3>Transcript Preview</h3>
+					<pre>{result.transcript}</pre>
+				</div>
+			) : null}
+		</div>
+	);
+};
 
+export default VideoResult;

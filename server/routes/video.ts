@@ -9,35 +9,54 @@ const router = Router();
  */
 router.post('/generate', async (req: Request, res: Response) => {
 	try {
-		const {template, input, options, transcript, presentation, topic} = req.body;
+		const { presentation, topic, template, input } = req.body;
 
-		if (!topic && !presentation && (!template || !input)) {
+		let requestPayload;
+
+		if (presentation) {
+			requestPayload = {
+				type: 'presentation' as const,
+				payload: presentation,
+			};
+		} else if (topic) {
+			requestPayload = {
+				type: 'topic' as const,
+				payload: {
+					topic,
+					durationSeconds: req.body.durationSeconds,
+					backgroundMusic: req.body.backgroundMusic,
+					notes: req.body.notes,
+					language: req.body.language,
+				},
+			};
+		} else if (template && input) {
+			requestPayload = {
+				type: 'template' as const,
+				payload: { template, input },
+			};
+		} else {
 			return res.status(400).json({
-				error: 'Provide either topic, presentation payload, or template/input payload',
+				error: 'Provide either topic payload, presentation payload, or template/input payload',
 			});
 		}
 
-		const result = await generateVideoFromRequest({
-			template,
-			input,
-			options,
-			transcript,
-			presentation,
-			topic,
-		});
+		const result = await generateVideoFromRequest(requestPayload);
 
-		res.status(200).json({
-			jobId: result.jobId,
-			status: 'completed',
+		if (!result.success) {
+			return res.status(500).json({
+				error: result.error ?? 'Video generation failed',
+			});
+		}
+
+		return res.status(200).json({
 			videoUrl: result.videoUrl,
-			transcriptUrl: result.transcriptUrl,
-			remotePath: result.remotePath,
+			transcript: result.transcript,
+			content: result.content,
 		});
 	} catch (error: any) {
-		console.error('Error creating video job:', error);
+		console.error('Error generating video:', error);
 		res.status(500).json({
-			error: 'Failed to create video generation job',
-			message: error.message,
+			error: error.message ?? 'Unexpected error generating video',
 		});
 	}
 });

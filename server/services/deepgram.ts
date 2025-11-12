@@ -8,10 +8,13 @@ export interface DeepgramSynthesisOptions {
 	model?: string;
 }
 
+const DEFAULT_TTS_MODEL = process.env.DEEPGRAM_TTS_MODEL ?? 'aura-asteria-en';
+const DEFAULT_TTS_VOICE = process.env.DEEPGRAM_TTS_VOICE;
+
 export const synthesizeSpeech = async ({
 	text,
-	voice = 'aura-asteria-en',
-	model = 'nova-2',
+	voice = DEFAULT_TTS_VOICE,
+	model = DEFAULT_TTS_MODEL,
 }: DeepgramSynthesisOptions): Promise<Buffer> => {
 	const apiKey = process.env.DEEPGRAM_API_KEY;
 	if (!apiKey) {
@@ -20,9 +23,12 @@ export const synthesizeSpeech = async ({
 
 	const params = new URLSearchParams({
 		model,
-		voice,
 		format: 'mp3',
 	});
+
+	if (voice && voice.trim().length > 0) {
+		params.set('voice', voice);
+	}
 
 	const response = await axios.post(
 		`${DEEPGRAM_API_URL}?${params.toString()}`,

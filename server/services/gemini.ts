@@ -37,7 +37,7 @@ export const callGemini = async <T = unknown>(
 				`${GEMINI_ENDPOINT}?key=${apiKey}`,
 				request,
 				{
-					timeout: 30000,
+					timeout: 60000,
 				}
 			);
 
@@ -48,7 +48,13 @@ export const callGemini = async <T = unknown>(
 				throw new Error('Gemini response did not include text content');
 			}
 
-			return JSON.parse(text) as T;
+			const cleaned = text
+				.trim()
+				.replace(/^```(?:json)?\s*/i, '')
+				.replace(/\s*```$/i, '')
+				.replace(/\uFEFF/g, '');
+
+			return JSON.parse(cleaned) as T;
 		} catch (error) {
 			const axiosError = error as AxiosError;
 			const status = axiosError.response?.status;

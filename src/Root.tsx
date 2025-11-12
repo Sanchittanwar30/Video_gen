@@ -2,6 +2,8 @@ import React from 'react';
 import {Composition} from 'remotion';
 import {TemplateComposition} from './compositions/TemplateComposition';
 import {OcrPresentation} from './compositions/OcrPresentation';
+import {Video} from './Video';
+import {STYLE_TOKENS} from './styleConfig';
 type TemplateCompositionProps = Parameters<typeof TemplateComposition>[0];
 type OcrPresentationProps = Parameters<typeof OcrPresentation>[0];
 
@@ -62,6 +64,17 @@ export const RemotionRoot: React.FC = () => {
 							},
 						],
 					},
+				}}
+			/>
+			<Composition
+				id="LessonVideo"
+				component={Video}
+				durationInFrames={STYLE_TOKENS.canvas.fps * 60}
+				fps={STYLE_TOKENS.canvas.fps}
+				width={STYLE_TOKENS.canvas.width}
+				height={STYLE_TOKENS.canvas.height}
+				defaultProps={{
+					mode: 'svg',
 				}}
 			/>
 		</>

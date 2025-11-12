@@ -5,6 +5,7 @@ import {existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync} from 'fs
 import {join, dirname, extname, resolve} from 'path';
 import {buildPresentationFromVideo} from '../server/services/presentation-builder';
 import type {PresentationBuildRequest, PresentationContent} from '../src/types/presentation';
+import {STYLE_TOKENS} from '../src/styleConfig';
 
 /**
  * Interface for render options
@@ -349,6 +350,12 @@ export async function renderTemplateToMp4(
 		process.env.REMOTION_FFPROBE_EXECUTABLE ||
 		process.env.REMOTION_FFPROBE_BINARY;
 
+	const browserExecutable =
+		process.env.REMOTION_BROWSER_EXECUTABLE ||
+		process.env.BROWSER_EXECUTABLE ||
+		process.env.CHROME_EXECUTABLE;
+	const browserTimeout = Number(process.env.REMOTION_BROWSER_TIMEOUT ?? 60000);
+
 	// Try to use lower quality settings to potentially avoid FFmpeg issues
 	// Also try using different codec options
 	const renderOptions: any = {
@@ -374,6 +381,13 @@ export async function renderTemplateToMp4(
 		videoBitrate: null,
 		audioBitrate: null,
 		omitAudio: !hasAudioTracks,
+		timeoutInMilliseconds: browserTimeout,
+		browserExecutable: browserExecutable ?? undefined,
+		chromiumOptions: {
+			// Reuse existing browser if available, helps on Windows where launch can be slow
+			executablePath: browserExecutable ?? undefined,
+			gl: process.env.REMOTION_CHROMIUM_GL ?? undefined,
+		},
 		ffmpegOverride: ({args, type}: {args: string[]; type: string}) => {
 			if (
 				process.platform !== 'darwin' ||
@@ -411,6 +425,11 @@ export async function renderTemplateToMp4(
 			return sanitized;
 		},
 	};
+
+	if (browserExecutable) {
+		console.log(`  Using custom Chrome executable: ${browserExecutable}`);
+	}
+	console.log(`  Browser launch timeout: ${browserTimeout}ms`);
 
 	if (ffmpegExecutable) {
 		renderOptions.ffmpegExecutable = ffmpegExecutable;
@@ -529,9 +548,15 @@ export async function renderPresentationContent({
 	introDurationSeconds = 4,
 	outroDurationSeconds = 5,
 }: RenderPresentationContentOptions): Promise<RenderPresentationResult> {
-	const fps = fpsOption ?? 30;
-	const width = widthOption ?? 1920;
-	const height = heightOption ?? 1080;
+	const fps = fpsOption ?? STYLE_TOKENS.canvas.fps;
+	const width = widthOption ?? STYLE_TOKENS.canvas.width;
+	const height = heightOption ?? STYLE_TOKENS.canvas.height;
+
+	const hasVoiceover = content.chapters.some(
+		(chapter) => typeof chapter.voiceoverSrc === 'string' && chapter.voiceoverSrc.trim() !== ''
+	);
+	const hasBackgroundMusic =
+		typeof content.backgroundMusic === 'string' && content.backgroundMusic.trim() !== '';
 
 	const introFrames = Math.floor(introDurationSeconds * fps);
 	const outroFrames = Math.floor(outroDurationSeconds * fps);
@@ -548,7 +573,7 @@ export async function renderPresentationContent({
 
 	const composition = await selectComposition({
 		serveUrl: bundled,
-		id: 'OcrPresentation',
+		id: 'LessonVideo',
 		inputProps: {
 			content,
 		},
@@ -564,6 +589,11 @@ export async function renderPresentationContent({
 		},
 		serveUrl: bundled,
 		codec: 'h264',
+		audioCodec: 'aac' as const,
+		audioBitrate: '320k',
+		crf: 18,
+		pixelFormat: 'yuv420p' as const,
+		omitAudio: !hasVoiceover && !hasBackgroundMusic,
 		outputLocation: outPath,
 		inputProps: {
 			content,
@@ -577,7 +607,21 @@ export async function renderPresentationContent({
 	};
 
 	console.log('Rendering presentation from draft...');
-	await renderMedia(renderOptions as any);
+	try {
+		await renderMedia(renderOptions as any);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		const isTargetClosed =
+			message.includes('Target closed') || message.includes('Page.bringToFront');
+
+		if (isTargetClosed && existsSync(outPath)) {
+			console.warn(
+				'Remotion reported a Target closed error after rendering, but the output file exists. Continuing.'
+			);
+		} else {
+			throw error;
+		}
+	}
 	console.log(`Render complete! Output saved to: ${outPath}`);
 
 	return {

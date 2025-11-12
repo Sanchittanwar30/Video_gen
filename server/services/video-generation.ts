@@ -40,8 +40,13 @@ export interface GenerateVideoResponse {
 	error?: string;
 }
 
+const TEMP_ROOT_DIR = path.join(process.cwd(), 'temp');
+const TEMP_JOB_DIR = path.join(TEMP_ROOT_DIR, 'video-jobs');
+const TEMP_ASSET_DIR = path.join(TEMP_ROOT_DIR, 'assets');
+
 const ensureTmpDir = async (prefix: string) => {
-	const dir = await fs.mkdtemp(path.join(process.cwd(), prefix));
+	await fs.mkdir(TEMP_JOB_DIR, { recursive: true });
+	const dir = await fs.mkdtemp(path.join(TEMP_JOB_DIR, prefix));
 	return dir;
 };
 
@@ -54,6 +59,7 @@ const cleanupTempDir = async (dir: string) => {
 };
 
 const ensureLocalAsset = async (src: string, jobId: string, label: string) => {
+	await fs.mkdir(TEMP_ASSET_DIR, { recursive: true });
 	const response = await fetch(src);
 	if (!response.ok) {
 		throw new Error(`Failed to download ${label} asset from ${src}`);
@@ -62,11 +68,22 @@ const ensureLocalAsset = async (src: string, jobId: string, label: string) => {
 	const arrayBuffer = await response.arrayBuffer();
 	const buffer = Buffer.from(arrayBuffer);
 	const ext = path.extname(src) || '.mp3';
-	const dir = path.join(process.cwd(), 'temp-assets', jobId);
+	const dir = path.join(TEMP_ASSET_DIR, jobId);
 	await fs.mkdir(dir, { recursive: true });
 	const filePath = path.join(dir, `${label}${ext}`);
 	await fs.writeFile(filePath, buffer);
-	return filePath;
+
+	const mimeType =
+		ext.toLowerCase() === '.wav'
+			? 'audio/wav'
+			: ext.toLowerCase() === '.ogg'
+			? 'audio/ogg'
+			: 'audio/mpeg';
+
+	const dataUrl = `data:${mimeType};base64,${buffer.toString('base64')}`;
+	console.log(`Downloaded ${label} asset to ${filePath}`);
+
+	return dataUrl;
 };
 
 const resolvePresentationContent = async (
@@ -117,14 +134,28 @@ export const generateVideoFromRequest = async (
 		let backgroundMusicSrc: string | undefined = content.backgroundMusic;
 
 		if (backgroundMusicSrc?.startsWith('http')) {
-			backgroundMusicSrc = await ensureLocalAsset(backgroundMusicSrc, jobId, 'background-music');
+			try {
+				backgroundMusicSrc = await ensureLocalAsset(backgroundMusicSrc, jobId, 'background-music');
+			} catch (error) {
+				console.warn('Failed to prepare background music asset, skipping:', error);
+				backgroundMusicSrc = undefined;
+			}
+		} else if (backgroundMusicSrc && !backgroundMusicSrc.startsWith('data:')) {
+			console.warn(
+				`Ignoring background music value that is not a URL or data URI: ${backgroundMusicSrc}`
+			);
+			backgroundMusicSrc = undefined;
 		}
 
 		// Render video using Remotion renderer wrapper
 		const result = await renderPresentationContent({
 			content: {
 				...content,
-				backgroundMusic: backgroundMusicSrc ?? content.backgroundMusic,
+				backgroundMusic:
+					backgroundMusicSrc ??
+					(content.backgroundMusic && content.backgroundMusic.startsWith('data:')
+						? content.backgroundMusic
+						: undefined),
 			},
 			outPath: outputPath,
 		});

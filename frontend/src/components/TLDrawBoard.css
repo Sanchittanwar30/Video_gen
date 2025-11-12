@@ -1,0 +1,119 @@
+.tldraw-wrapper {
+  margin-top: 2.5rem;
+  background: var(--surface, #0f172a);
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.tldraw-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  padding: 1.5rem 2rem;
+  background: linear-gradient(120deg, rgba(56, 189, 248, 0.12), transparent);
+  color: #e2e8f0;
+}
+
+.tldraw-header h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.tldraw-header p {
+  margin: 0;
+  color: rgba(226, 232, 240, 0.78);
+  font-size: 0.95rem;
+  max-width: 520px;
+}
+
+.tldraw-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.tldraw-actions button,
+.tldraw-import button {
+  background: rgba(248, 250, 252, 0.08);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.tldraw-actions button:hover,
+.tldraw-import button:hover {
+  background: rgba(56, 189, 248, 0.18);
+  transform: translateY(-1px);
+}
+
+.tldraw-canvas {
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  background: #0b1220;
+  min-height: 520px;
+}
+
+.tldraw-canvas .tl-theme__light {
+  height: 100%;
+}
+
+.tldraw-import {
+  padding: 1.25rem 2rem 2rem;
+  color: #e2e8f0;
+}
+
+.tldraw-import summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.tldraw-import textarea {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.6);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  padding: 0.85rem;
+  font-family: 'JetBrains Mono', Menlo, Monaco, 'Courier New', monospace;
+  font-size: 0.85rem;
+  resize: vertical;
+  min-height: 180px;
+}
+
+.tldraw-import textarea::placeholder {
+  color: rgba(226, 232, 240, 0.45);
+}
+
+.tldraw-import-actions {
+  margin-top: 0.75rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tldraw-status {
+  padding: 0.9rem 2rem 1.6rem;
+  color: rgba(148, 197, 255, 0.95);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 1024px) {
+  .tldraw-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tldraw-actions {
+    justify-content: flex-start;
+  }
+}

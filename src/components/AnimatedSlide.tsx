@@ -57,6 +57,15 @@ export const AnimatedSlide: React.FC<AnimatedSlideProps> = ({
 			/>
 			<div
 				style={{
+					position: 'absolute',
+					inset: 0,
+					background:
+						'linear-gradient(180deg, rgba(8,11,24,0.78) 0%, rgba(8,11,24,0.82) 45%, rgba(8,11,24,0.88) 100%)',
+					mixBlendMode: 'multiply',
+				}}
+			/>
+			<div
+				style={{
 					position: 'relative',
 					zIndex: 2,
 					display: 'flex',
@@ -97,6 +106,7 @@ export const AnimatedSlide: React.FC<AnimatedSlideProps> = ({
 						gridTemplateColumns: '1fr 1fr',
 						gap: '2rem',
 						flex: 1,
+						alignItems: 'start',
 					}}
 				>
 					<ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -146,8 +156,10 @@ export const AnimatedSlide: React.FC<AnimatedSlideProps> = ({
 							display: 'flex',
 							flexDirection: 'column',
 							gap: '1.5rem',
-							alignItems: 'center',
-							justifyContent: 'center',
+							alignItems: 'stretch',
+							justifyContent: 'flex-start',
+							maxHeight: '100%',
+							overflow: 'hidden',
 						}}
 					>
 						{chapter.table ? <AnimatedTable table={chapter.table} /> : null}

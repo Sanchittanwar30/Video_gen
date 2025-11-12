@@ -1,0 +1,13 @@
+<svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pen-body" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#334155"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" fill-rule="evenodd">
+    <path d="M10 32.5L31.6 11.1c1.7-1.7 4.5-1.7 6.2 0s1.7 4.5 0 6.2L16.2 38.7 10 40l1.3-6.2z" fill="url(#pen-body)" stroke="#0F172A" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M11.2 36.8l4.9 4.9" stroke="#F97316" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="38.2" cy="11.8" r="3.6" fill="#F97316" opacity="0.35"/>
+  </g>
+</svg>

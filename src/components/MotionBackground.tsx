@@ -18,7 +18,7 @@ export const MotionBackground: React.FC<MotionBackgroundProps> = ({primaryColor,
 			style={{
 				position: 'absolute',
 				inset: 0,
-				background: `radial-gradient(120% 120% at 50% 50%, ${secondaryColor}, ${primaryColor})`,
+				background: `linear-gradient(135deg, ${secondaryColor} 0%, rgba(8,12,24,0.95) 70%)`,
 				overflow: 'hidden',
 			}}
 		>
@@ -31,7 +31,7 @@ export const MotionBackground: React.FC<MotionBackgroundProps> = ({primaryColor,
 					height: '70%',
 					borderRadius: '50%',
 					background: accentColor,
-					opacity: 0.18 + 0.05 * Math.sin(pulse),
+					opacity: 0.12 + 0.05 * Math.sin(pulse),
 					transform: `scale(${1 + 0.04 * Math.sin(pulse / 2)})`,
 					filter: 'blur(80px)',
 				}}
@@ -44,10 +44,17 @@ export const MotionBackground: React.FC<MotionBackgroundProps> = ({primaryColor,
 					width: '75%',
 					height: '75%',
 					borderRadius: '50%',
-					background: '#ffffff',
-					opacity: 0.12 + 0.06 * Math.cos(pulse / 1.5),
+					background: primaryColor,
+					opacity: 0.08 + 0.04 * Math.cos(pulse / 1.5),
 					transform: `scale(${1.05 + 0.03 * Math.sin(pulse)})`,
 					filter: 'blur(120px)',
+				}}
+			/>
+			<div
+				style={{
+					position: 'absolute',
+					inset: 0,
+					background: 'radial-gradient(circle at 20% 20%, rgba(148,163,184,0.08), transparent 55%)',
 				}}
 			/>
 		</div>

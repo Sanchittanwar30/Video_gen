@@ -19,6 +19,106 @@ export interface ChapterTable {
 	highlightedRowIndex?: number;
 }
 
+export interface DiagramPointer {
+	mode: 'tap' | 'point' | 'trace' | 'arrow' | 'none';
+	target?: string;
+	anchor?: 'center' | 'top' | 'bottom' | 'left' | 'right';
+	durationSeconds?: number;
+	points?: Array<{x: number; y: number}>;
+	color?: string;
+}
+
+export interface WhiteboardStyle {
+	background?: string;
+	stroke?: string;
+	strokeWidth?: number;
+	accent?: string;
+	pointerColor?: string;
+	boardPadding?: number;
+}
+
+export interface DiagramEntity {
+	id: string;
+	title: string;
+	fields?: string[];
+	description?: string;
+}
+
+export interface DiagramRelationship {
+	from: string;
+	to: string;
+	label?: string;
+	fromAnchor?: 'center' | 'top' | 'bottom' | 'left' | 'right';
+	toAnchor?: 'center' | 'top' | 'bottom' | 'left' | 'right';
+}
+
+export interface WhiteboardLayer {
+	title: string;
+	items: string[];
+}
+
+export interface WhiteboardOverlay {
+	externalSvgUrl?: string;
+	accentColor?: string;
+}
+
+export interface WhiteboardSvgHint {
+	cmd: 'moveTo' | 'lineTo' | 'rect' | 'circle' | 'text' | 'arc' | 'bezier';
+	x?: number;
+	y?: number;
+	w?: number;
+	h?: number;
+	width?: number;
+	height?: number;
+	cx?: number;
+	cy?: number;
+	r?: number;
+	rx?: number;
+	ry?: number;
+	rotation?: number;
+	largeArc?: boolean;
+	sweep?: number;
+	text?: string;
+	points?: Array<{x: number; y: number}>;
+	style?: Record<string, unknown>;
+}
+
+export interface DiagramFocusEventTarget {
+	cmdIndex?: number;
+	x?: number;
+	y?: number;
+}
+
+export interface DiagramFocusEvent {
+	time: number;
+	action: 'point' | 'tap' | 'trace';
+	target: DiagramFocusEventTarget;
+}
+
+export interface PresentationDiagram {
+	type: 'mermaid' | 'erd' | 'whiteboard';
+	visualType?: 'mermaid' | 'erd' | 'whiteboard' | 'svg' | 'image';
+	mermaid?: string;
+	image?: string;
+	entities?: DiagramEntity[];
+	relationships?: DiagramRelationship[];
+	pointer?: DiagramPointer;
+	style?: WhiteboardStyle;
+	whiteboard?: {
+		background?: 'grid' | 'dot' | 'plain';
+		layers?: WhiteboardLayer[];
+		callouts?: string[];
+		externalSvgUrl?: string;
+		accentColor?: string;
+		tldrawSceneUrl?: string;
+	};
+	svgHints?: WhiteboardSvgHint[];
+	focusEvents?: DiagramFocusEvent[];
+	imagePrompts?: string[];
+	notes?: string;
+	excalidrawSvg?: string;
+}
+
 export type ChapterMarker =
 	| {
 			type: 'table';
@@ -44,9 +144,16 @@ export interface ChapterSlide {
 	startSeconds: number;
 	endSeconds: number;
 	table?: ChapterTable;
+	diagram?: PresentationDiagram;
 	voiceoverSrc?: string;
+	voiceoverScript?: string;
+	voiceoverDurationSeconds?: number;
+	audioDurationSeconds?: number;
 	markers?: ChapterMarker[];
 	durationSeconds?: number;
+	audioFile?: string;
+	imagePrompts?: string[];
+	pointerPauseSeconds?: number;
 }
 
 export interface PresentationTheme {
@@ -55,6 +162,7 @@ export interface PresentationTheme {
 	backgroundColor: string;
 	accentColor: string;
 	fontFamily: string;
+	name?: string;
 }
 
 export interface PresentationContent {

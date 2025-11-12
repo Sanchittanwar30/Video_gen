@@ -24,7 +24,8 @@ export const ExcalidrawOverlay: React.FC<ExcalidrawOverlayProps> = ({svgMarkup, 
 		<div
 			style={{
 				position: 'relative',
-				width: '60%',
+				width: '100%',
+				maxWidth: '520px',
 				margin: '0 auto',
 				textAlign: 'center',
 			}}
@@ -33,7 +34,7 @@ export const ExcalidrawOverlay: React.FC<ExcalidrawOverlayProps> = ({svgMarkup, 
 				<h3
 					style={{
 						marginBottom: 12,
-						color: 'rgba(17,24,39,0.9)',
+						color: '#f1f5f9',
 					}}
 				>
 					{title}
@@ -43,12 +44,14 @@ export const ExcalidrawOverlay: React.FC<ExcalidrawOverlayProps> = ({svgMarkup, 
 				style={{
 					position: 'relative',
 					padding: '1.25rem',
-					background: 'rgba(255,255,255,0.92)',
+					background: 'rgba(15,23,42,0.78)',
 					borderRadius: 18,
-					boxShadow: '0 12px 32px rgba(15,23,42,0.22)',
+					boxShadow: '0 14px 32px rgba(8,11,24,0.48)',
 					opacity,
 					transform: `translateY(${translateY}px)`,
 					transition: 'box-shadow 0.4s ease',
+					border: '1px solid rgba(148,163,184,0.2)',
+					overflow: 'hidden',
 				}}
 				dangerouslySetInnerHTML={{__html: svgMarkup}}
 			/>

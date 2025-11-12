@@ -8,7 +8,7 @@ import type {PresentationBuildRequest, PresentationContent} from '../src/types/p
 import {STYLE_TOKENS} from '../src/styleConfig';
 
 /**
- * Interface for render options
+ * Interface for render options //to be visited
  */
 export interface RenderTemplateOptions {
 	templatePath: string;

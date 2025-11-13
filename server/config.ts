@@ -26,7 +26,7 @@ export const config = {
 	},
 	ai: {
 		geminiApiKey: process.env.GEMINI_API_KEY || '',
-		geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+		geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
 	},
 	paths: {
 		outputDir: process.env.OUTPUT_DIR || './output',

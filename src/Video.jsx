@@ -2,8 +2,8 @@ import React, {useMemo} from 'react';
 import {AbsoluteFill, Sequence, Audio} from 'remotion';
 import type {PresentationContent, ChapterSlide} from './types/presentation';
 import {ERDFrame} from './ERDFrame';
-import WhiteboardFrame from './WhiteboardFrame';
 import {STYLE_TOKENS, resolveTheme} from './styleConfig';
+import {ChapterVisual, DEFAULT_VISUAL_SIZE} from './components/ChapterVisual';
 
 import '@fontsource/inter/400.css';
 import '@fontsource/inter/600.css';
@@ -144,10 +144,7 @@ const ChapterSequence: React.FC<{
 	const accentMuted =
 		themeColors.accentMuted ?? 'rgba(37,99,235,0.14)';
 	const visualType = chapter.diagram?.visualType ?? chapter.diagram?.type ?? 'erd';
-	const whiteboardSize = {
-		width: Math.round(STYLE_TOKENS.canvas.width * 0.6),
-		height: Math.round(STYLE_TOKENS.canvas.height * 0.72),
-	};
+	const visualSize = DEFAULT_VISUAL_SIZE;
 
 	return (
 		<Sequence from={startFrame} durationInFrames={durationInFrames}>
@@ -271,19 +268,11 @@ const ChapterSequence: React.FC<{
 							}}
 						/>
 						<div style={{position: 'relative', zIndex: 1}}>
-							{visualType === 'whiteboard' ? (
-								<WhiteboardFrame
+							{visualType === 'whiteboard' || chapter.diagram?.image ? (
+								<ChapterVisual
 									chapter={chapter}
-									mode="whiteboard"
-									width={whiteboardSize.width}
-									height={whiteboardSize.height}
-								/>
-							) : chapter.diagram?.image ? (
-								<WhiteboardFrame
-									chapter={chapter}
-									mode="image"
-									width={whiteboardSize.width}
-									height={whiteboardSize.height}
+									width={visualSize.width}
+									height={visualSize.height}
 								/>
 							) : (
 								<ERDFrame diagram={chapter.diagram} theme={themeColors} fontFamily={fontFamily} />

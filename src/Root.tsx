@@ -4,6 +4,7 @@ import {TemplateComposition} from './compositions/TemplateComposition';
 import {OcrPresentation} from './compositions/OcrPresentation';
 import {Video} from './Video';
 import {STYLE_TOKENS} from './styleConfig';
+import {VideoFromAI, AIVideoData, calculatePlanDurationInFrames} from '../remotion/src/VideoFromAI';
 type TemplateCompositionProps = Parameters<typeof TemplateComposition>[0];
 type OcrPresentationProps = Parameters<typeof OcrPresentation>[0];
 
@@ -14,6 +15,22 @@ const TemplateCompositionWrapper: React.FC<Record<string, unknown>> = (props) =>
 const OcrPresentationWrapper: React.FC<Record<string, unknown>> = (props) => (
 	<OcrPresentation {...(props as unknown as OcrPresentationProps)} />
 );
+
+const defaultAIPlan: AIVideoData = {
+	title: 'Sample AI Storyboard',
+	frames: [
+		{
+			id: 'frame_1',
+			type: 'whiteboard_diagram',
+			heading: 'Placeholder',
+			text: 'Add topic + description via /api/generate-video.',
+			duration: 4,
+			asset: undefined,
+		},
+	],
+};
+
+const VideoFromAIWrapper: React.FC<{plan: AIVideoData}> = ({plan}) => <VideoFromAI data={plan} />;
 
 export const RemotionRoot: React.FC = () => {
 	return (
@@ -75,6 +92,17 @@ export const RemotionRoot: React.FC = () => {
 				height={STYLE_TOKENS.canvas.height}
 				defaultProps={{
 					mode: 'svg',
+				}}
+			/>
+			<Composition
+				id="VideoFromAI"
+				component={VideoFromAIWrapper}
+				durationInFrames={calculatePlanDurationInFrames(defaultAIPlan, 30)}
+				fps={30}
+				width={1920}
+				height={1080}
+				defaultProps={{
+					plan: defaultAIPlan,
 				}}
 			/>
 		</>

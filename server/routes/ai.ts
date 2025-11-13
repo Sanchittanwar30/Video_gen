@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { config } from '../config';
 import rateLimit from 'express-rate-limit';
-import {callGemini} from '../services/gemini';
+import {callGeminiText} from '../services/gemini';
 
 const router = Router();
 
@@ -120,21 +120,18 @@ Return ONLY JSON with the following shape:
       sections?: Array<Record<string, unknown>>;
     }
 
-    const generated = await callGemini<GeminiAiResponse>({
-      model: 'gemini-2.5-flash',
-      contents: [
-        {
-          role: 'user',
-          parts: [{text: prompt}],
-        },
-      ],
-      safetySettings: [
-        {category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH'},
-        {category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH'},
-        {category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH'},
-        {category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH'},
-      ],
-    });
+    let generated: GeminiAiResponse;
+    try {
+      const raw = await callGeminiText(prompt);
+      generated = JSON.parse(raw) as GeminiAiResponse;
+    } catch (error) {
+      console.error('Gemini content generation failed:', error);
+      return res.status(502).json({
+        error: 'Invalid response from Gemini',
+        message:
+          error instanceof Error ? error.message : 'Gemini did not return valid JSON content.',
+      });
+    }
 
     if (!generated || typeof generated !== 'object') {
       return res.status(502).json({error: 'Invalid response from Gemini', message: 'AI response was empty.'});

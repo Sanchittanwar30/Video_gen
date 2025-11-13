@@ -15,23 +15,10 @@
       ],
       "durationSeconds": 6,
       "diagram": {
+        "type": "whiteboard",
         "visualType": "whiteboard",
-        "svgHints": [
-          { "cmd": "rect", "x": 120, "y": 120, "w": 220, "h": 120, "style": { "stroke": "#0F172A", "strokeWidth": 3 } },
-          { "cmd": "text", "x": 140, "y": 160, "text": "Class: Car", "style": { "fontSize": 24 } },
-          { "cmd": "text", "x": 140, "y": 196, "text": "+ speed, color", "style": { "fontSize": 18 } },
-          { "cmd": "text", "x": 140, "y": 224, "text": "+ start(), accelerate()", "style": { "fontSize": 18 } },
-          { "cmd": "moveTo", "x": 240, "y": 240, "style": { "stroke": "#F97316", "strokeWidth": 4 } },
-          { "cmd": "lineTo", "x": 480, "y": 240, "style": { "stroke": "#F97316", "strokeWidth": 4 } },
-          { "cmd": "rect", "x": 460, "y": 80, "w": 220, "h": 120, "style": { "stroke": "#0F172A", "strokeWidth": 3 } },
-          { "cmd": "text", "x": 480, "y": 120, "text": "Object: sportsCar", "style": { "fontSize": 22 } },
-          { "cmd": "text", "x": 480, "y": 156, "text": "speed = 120 km/h", "style": { "fontSize": 18 } },
-          { "cmd": "text", "x": 480, "y": 190, "text": "color = red", "style": { "fontSize": 18 } }
-        ],
-        "focusEvents": [
-          { "time": 1.5, "action": "point", "target": { "cmdIndex": 0 } },
-          { "time": 3.0, "action": "trace", "target": { "cmdIndex": 4 } },
-          { "time": 4.4, "action": "tap", "target": { "x": 520, "y": 120 } }
+        "imagePrompts": [
+          "Whiteboard sketch with a 'Class: Car' blueprint on the left and an arrow pointing to 'sportsCar' on the right, annotated with speed and color."
         ]
       }
     }

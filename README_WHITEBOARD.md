@@ -1,64 +1,36 @@
-# Whiteboard Rendering Add-on
+# Whiteboard Image Generation
 
-This directory introduces a focused set of helpers so the Remotion renderer can animate whiteboard sketches that come straight from LLM output.
+Whiteboard chapters now rely on Gemini to create progressive SVG sketches (converted to base64). No TLDraw snapshots or Nanobanana storyboards are required.
 
-## SVG Hint Command Reference
+## Gemini Prompt Expectations
 
-Each chapter with `diagram.visualType: "whiteboard"` should provide an ordered array of `svgHints`. Supported commands are:
+When Gemini drafts a chapter with `diagram.visualType: "whiteboard"` make sure it also includes a short list of `diagram.imagePrompts` describing the desired sketch (e.g. sticky notes, arrows, labels). The backend uses those hints—along with the chapter summary & key ideas—to request a sequence of SVG frames that progressively build the board.
 
-- `{ "cmd": "moveTo", "x": 120, "y": 180 }` – start a new stroked path at the given coordinates.
-- `{ "cmd": "lineTo", "x": 320, "y": 180 }` – extend the active path with a straight segment.
-- `{ "cmd": "rect", "x": 120, "y": 120, "w": 220, "h": 120 }` – draw a rectangle path.
-- `{ "cmd": "circle", "x": 520, "y": 160, "r": 60 }` – draw a circular path.
-- `{ "cmd": "text", "x": 140, "y": 160, "text": "Class: Car" }` – render a text label (revealed after strokes finish).
-- `{ "cmd": "bezier", "points": [{"x":140,"y":280},{"x":220,"y":340},{"x":340,"y":320}] }` – add a cubic Bézier curve.
-- `{ "cmd": "arc", "x": 420, "y": 240, "rx": 32, "ry": 24 }` – extend the active path with an elliptical arc.
-
-Optional `style` fields can override `stroke`, `strokeWidth`, `fill`, `opacity`, `strokeLinecap`, `strokeLinejoin`, or set `sketchy: true` for dashed strokes.
-
-## Focus Events and Pointer Behaviour
-
-Use `diagram.focusEvents` to choreograph the pointer/pen:
+Example minimal payload:
 
 ```json
 {
-  "time": 3.0,
-  "action": "trace",
-  "target": { "cmdIndex": 4 }
+  "diagram": {
+    "type": "whiteboard",
+    "visualType": "whiteboard",
+    "imagePrompts": [
+      "Blueprint of a class on the left, instance on the right with arrows connecting attributes"
+    ]
+  }
 }
 ```
 
-- `time` is measured in seconds from the start of the chapter.
-- `action` can be `point`, `tap`, or `trace`.
-- `target` may reference `cmdIndex` (matching the svgHints array index) or absolute `x/y` coordinates.
-- During `trace`, the pointer follows the selected command for ~0.6 s; `tap` adds a bounce highlight.
+## Generation Flow
 
-If you use Deepgram timestamps, simply map the timestamp (seconds) to the `time` field. The renderer converts these to frames internally via `timeSecToFrame`.
+1. Gemini returns chapters with summaries, key ideas, and optional `imagePrompts`.
+2. The backend calls Gemini again, requesting three incremental SVG frames (layout → relationships → final annotations). Each SVG is transformed into a `data:image/svg+xml;base64,...` URL.
+3. If Gemini cannot produce any frame, we optionally fall back to Hugging Face (when `USE_HF=true`) using the primary prompt.
+4. Remotion renders the frames through `ChapterVisual`, crossfading through the sequence to mimic a live sketch. If no frame is available, it falls back to a text card.
 
-## Generating LLM Output
+## Tips
 
-When prompting Gemini/Cursor for chapters, include guidance such as:
+- Keep prompts concise (1–2 sentences) but mention layout and key annotations.
+- Prefer light backgrounds (`#F8FAFC`) with dark ink so the sketch resembles a whiteboard.
+- You can add `diagram.whiteboard.callouts` to highlight terms; they’re surfaced in the UI but not required for image generation.
 
-> "Produce JSON for a chapter that uses `visualType: 'whiteboard'`. Provide `svgHints` as an ordered list of drawing commands (moveTo, rect, text, lineTo). Provide `focusEvents` with `time` in seconds and `action` of `point|tap|trace` referencing hint indices."
-
-## Previewing the Whiteboard Scene
-
-1. Validate your JSON:
-   ```bash
-   node tools/validate-whiteboard-json.js src/sample-whiteboard.json
-   ```
-2. Launch Remotion with the sample chapter:
-   ```bash
-   npx remotion preview --props="{\"contentPath\":\"src/sample-whiteboard.json\"}"
-   ```
-   or wire the sample into your existing `loadJson` helper.
-3. Look for the new `WhiteboardFrame` branch in `Video.jsx`. Chapters with `visualType: "whiteboard"` automatically render the animated sketch, while other diagrams still use the ERD/SVG code paths.
-
-## Development Notes
-
-- The whiteboard renderer shares canvas dimensions from `styleConfig` (960×540 @ 30 fps).
-- Stroke durations scale with path length, leaving ~0.8 s buffer for pointer callouts.
-- `src/hand-pen.svg` supplies the pointer asset. Replace it with your preferred stylus if required.
-- The helper module `src/whiteboard-utils.js` is safe to reuse inside CLI tools or schema validation.
-
-Happy sketching! 🚀
+Happy sketching! ✏️

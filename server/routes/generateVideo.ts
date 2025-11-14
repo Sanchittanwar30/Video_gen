@@ -9,9 +9,12 @@ import {renderStoryboardVideo} from '../services/remotion-ai-renderer';
 const router = Router();
 
 router.post('/generate-video', async (req: Request, res: Response) => {
-	const {topic, description = ''} = req.body ?? {};
+	const rawTopic = req.body?.topic;
+	const rawDescription = req.body?.description;
+	const topic = typeof rawTopic === 'string' ? rawTopic.trim() : '';
+	const description = typeof rawDescription === 'string' ? rawDescription.trim() : '';
 
-	if (!topic || typeof topic !== 'string') {
+	if (!topic) {
 		return res.status(400).json({
 			error: 'topic is required',
 		});

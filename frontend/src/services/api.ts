@@ -3,7 +3,7 @@ import axios from 'axios';
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export interface GenerateVideoPayload {
-  topic?: string;
+  topic: string;
   durationSeconds?: number;
   backgroundMusic?: string;
   notes?: string;

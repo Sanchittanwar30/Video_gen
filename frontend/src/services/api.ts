@@ -4,9 +4,11 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export interface GenerateVideoPayload {
   topic: string;
+  description?: string;
   durationSeconds?: number;
   backgroundMusic?: string;
   notes?: string;
+  animateDiagrams?: boolean;
   presentation?: Record<string, unknown>;
 }
 

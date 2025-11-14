@@ -41,9 +41,11 @@
     "multer": "^1.4.5-lts.1",
     "music-metadata": "^7.13.12",
     "node-tesseract-ocr": "^2.0.0",
+    "potrace": "^2.1.8",
     "puppeteer": "^22.10.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "sharp": "^0.34.5",
     "uuid": "^9.0.1",
     "ws": "^8.14.2"
   },

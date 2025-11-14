@@ -10,6 +10,10 @@ import { v4 as uuidv4 } from "uuid";
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 const DEFAULT_TEXT_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+const TEXT_MODEL_FALLBACKS = process.env.GEMINI_TEXT_MODEL_FALLBACKS
+  ? process.env.GEMINI_TEXT_MODEL_FALLBACKS.split(",").map((s) => s.trim()).filter(Boolean)
+  : ["gemini-2.0-flash", "gemini-1.5-pro"];
+
 // Keep default image model but also support a fallback list via env
 const DEFAULT_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL ?? "imagen-4.0-generate-preview-06-06";
 const IMAGE_MODEL_FALLBACKS = process.env.GEMINI_IMAGE_MODEL_FALLBACKS
@@ -59,7 +63,7 @@ function buildAxios(apiKey: string): AxiosInstance {
   return axios.create({
     baseURL: GEMINI_API_BASE,
     params: { key: apiKey },
-    timeout: 60_000,
+    timeout: 120_000, // Increased to 120 seconds for image generation
     headers: { "Content-Type": "application/json" },
   });
 }
@@ -123,6 +127,7 @@ async function postWithRetries<T>(
 
 /**
  * callGeminiText: generate text from Gemini and return the trimmed, sanitized string.
+ * Tries fallback models if the primary model fails.
  */
 export async function callGeminiText(
   prompt: string,
@@ -130,39 +135,67 @@ export async function callGeminiText(
 ): Promise<string> {
   const apiKey = getApiKey();
   const client = buildAxios(apiKey);
-  const url = `/${model}:generateContent`;
+  
+  // Build model sequence: explicit param first, then configured fallbacks (unique)
+  const fallbacks = Array.from(new Set([model, ...TEXT_MODEL_FALLBACKS]));
+  
+  let lastError: any = null;
+  
+  for (const candidateModel of fallbacks) {
+    const url = `/${candidateModel}:generateContent`;
 
-  const payload = {
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: prompt }],
-      },
-    ],
-  };
+    const payload = {
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }],
+        },
+      ],
+    };
 
-  const data = await postWithRetries<any>(client, url, payload);
+    try {
+      const data = await postWithRetries<any>(client, url, payload);
 
-  // defensive parsing of common response shapes
-  const candidates = data?.candidates ?? [];
-  for (const cand of candidates) {
-    const parts = cand?.content?.parts ?? [];
-    for (const p of parts) {
-      if (p && typeof p.text === "string" && p.text.trim().length > 0) {
-        const cleaned = sanitizeModelText(p.text);
-        return (cleaned ?? p.text).trim();
+      // defensive parsing of common response shapes
+      const candidates = data?.candidates ?? [];
+      for (const cand of candidates) {
+        const parts = cand?.content?.parts ?? [];
+        for (const p of parts) {
+          if (p && typeof p.text === "string" && p.text.trim().length > 0) {
+            const cleaned = sanitizeModelText(p.text);
+            return (cleaned ?? p.text).trim();
+          }
+        }
+
+        // older/alternate shapes
+        const inlineText = cand?.content?.text ?? cand?.content?.speech ?? cand?.text;
+        if (typeof inlineText === "string" && inlineText.trim().length > 0) {
+          const cleaned = sanitizeModelText(inlineText);
+          return (cleaned ?? inlineText).trim();
+        }
       }
-    }
 
-    // older/alternate shapes
-    const inlineText = cand?.content?.text ?? cand?.content?.speech ?? cand?.text;
-    if (typeof inlineText === "string" && inlineText.trim().length > 0) {
-      const cleaned = sanitizeModelText(inlineText);
-      return (cleaned ?? inlineText).trim();
+      throw new Error("Gemini text response did not contain usable text");
+    } catch (err: any) {
+      lastError = err;
+      const status = err?.status ?? err?.response?.status;
+      
+      // If it's a 503 (overloaded) or 429 (rate limit), try next model
+      if (status === 503 || status === 429) {
+        console.warn(`[Gemini Text] Model ${candidateModel} unavailable (${status}), trying fallback...`);
+        await sleep(500); // Brief delay before trying next model
+        continue;
+      }
+      
+      // For other errors, throw immediately (don't try fallbacks)
+      throw err;
     }
   }
-
-  throw new Error("Gemini text response did not contain usable text");
+  
+  // All models failed
+  throw new Error(
+    `All text model attempts failed. Last error: ${lastError?.message ?? 'Unknown error'}`
+  );
 }
 
 /**

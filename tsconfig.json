@@ -15,9 +15,10 @@
     "outDir": "./dist",
     "rootDir": "./",
     "allowSyntheticDefaultImports": true,
-    "types": ["node", "./src/types/fluent-ffmpeg"]
+    "types": ["node"],
+    "typeRoots": ["./node_modules/@types", "./types"]
   },
-  "include": ["src/**/*", "render/**/*", "scripts/**/*"],
+  "include": ["src/**/*", "render/**/*", "scripts/**/*", "server/**/*", "examples/**/*", "types/**/*"],
   "exclude": ["node_modules", "dist"],
   "ts-node": {
     "compilerOptions": {

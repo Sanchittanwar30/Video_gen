@@ -11,6 +11,7 @@ export default function VideoForm({onResult}: VideoFormProps) {
 	const [durationSeconds, setDurationSeconds] = useState(30);
 	const [backgroundMusic, setBackgroundMusic] = useState('');
 	const [notes, setNotes] = useState('');
+	const [animateDiagrams, setAnimateDiagrams] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -31,6 +32,7 @@ export default function VideoForm({onResult}: VideoFormProps) {
 				durationSeconds: Math.max(30, Math.round(durationSeconds)),
 				backgroundMusic: backgroundMusic.trim() || undefined,
 				notes: notes.trim() || undefined,
+				animateDiagrams: animateDiagrams,
 			};
 
 			const result = await api.generateVideo(payload);
@@ -91,6 +93,18 @@ export default function VideoForm({onResult}: VideoFormProps) {
 					placeholder="Add learning objectives, key points, or resources to reference."
 					rows={4}
 				/>
+			</div>
+
+			<div className="form-section">
+				<label style={{display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer'}}>
+					<input
+						type="checkbox"
+						checked={animateDiagrams}
+						onChange={(e) => setAnimateDiagrams(e.target.checked)}
+						style={{cursor: 'pointer'}}
+					/>
+					<span>Animate whiteboard diagrams (converts images to animated videos)</span>
+				</label>
 			</div>
 
 			<details className="advanced-toggle" open={advancedOpen} onToggle={(e) => setAdvancedOpen(e.currentTarget.open)}>

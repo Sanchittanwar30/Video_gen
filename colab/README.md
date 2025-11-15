@@ -2,6 +2,17 @@
 
 This directory contains files and scripts for running heavy video rendering tasks on Google Colab.
 
+## 🚀 Quick Start
+
+**New to Colab?** Start here:
+1. **[QUICK_START.md](./QUICK_START.md)** - Get running in 5 minutes
+2. **[SETUP_GUIDE.md](./SETUP_GUIDE.md)** - Complete step-by-step setup
+
+**Already set up?** See:
+- **[API_USAGE.md](./API_USAGE.md)** - API endpoint documentation
+- **[ngrok-setup.md](./ngrok-setup.md)** - ngrok configuration guide
+- **[FASTAPI_SETUP.md](./FASTAPI_SETUP.md)** - FastAPI server alternative (Python)
+
 ## Overview
 
 Google Colab provides free GPU/CPU resources that can be used to offload computationally intensive video rendering tasks. This is especially useful when:
@@ -45,6 +56,39 @@ curl http://localhost:3000/api/colab/download/{jobId} -o video.mp4
 ```
 
 See [API_USAGE.md](./API_USAGE.md) for detailed API documentation.
+
+### Using ngrok (Recommended for Local Development)
+
+ngrok is perfect for exposing your local API to Colab:
+
+```bash
+# 1. Install ngrok (if not already installed)
+# Windows: choco install ngrok
+# Mac: brew install ngrok
+# Or download from https://ngrok.com/download
+
+# 2. Start your API server
+npm run start:api
+
+# 3. In a new terminal, start ngrok
+ngrok http 3000
+
+# 4. Copy the Forwarding URL (e.g., https://abc123.ngrok-free.app)
+
+# 5. In Colab notebook, set:
+API_BASE_URL = "https://abc123.ngrok-free.app"
+```
+
+**Helper scripts:**
+- `colab/start-ngrok.sh` (Linux/Mac)
+- `colab/start-ngrok.ps1` (Windows PowerShell)
+
+**Test your connection:**
+```bash
+python colab/test-ngrok-connection.py https://abc123.ngrok-free.app
+```
+
+See [ngrok-setup.md](./ngrok-setup.md) for detailed ngrok setup instructions.
 
 ### Manual Upload
 

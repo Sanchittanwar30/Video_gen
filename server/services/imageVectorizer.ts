@@ -92,12 +92,12 @@ export const vectorizeImage = async (imagePath: string, timeoutMs: number = 1500
 				optCurve: true, // Enable curve optimization for smoother paths
 				optTolerance: 0.4, // Curve optimization tolerance
 				turdSize: 1, // Keep even more small shapes = more paths for better animation (was 2)
-				turnPolicy: potrace.Potrace.TURNPOLICY_MINORITY,
+				turnPolicy: 'minority' as string, // Use string literal instead of enum
 				alphamax: 1.0,
 			});
 
 			// Extract paths from SVG
-			const pathMatch = svgString.match(/<path[^>]*d="([^"]*)"[^>]*>/g);
+			const pathMatch = (svgString as string).match(/<path[^>]*d="([^"]*)"[^>]*>/g);
 			if (!pathMatch || pathMatch.length === 0) {
 				throw new Error('No paths found in vectorized image');
 			}

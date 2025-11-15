@@ -11,6 +11,7 @@ import {
 	interpolate,
 	staticFile,
 } from 'remotion';
+import { WhiteboardAnimatorPrecise } from '../../src/WhiteboardAnimatorPrecise';
 
 export interface AIVideoFrame {
 	id: string;
@@ -28,6 +29,7 @@ export interface AIVideoFrame {
 	};
 	voiceoverUrl?: string;
 	voiceoverScript?: string;
+	svgString?: string; // Pre-loaded SVG string content (loaded before render)
 }
 
 export interface AIVideoData {
@@ -37,11 +39,11 @@ export interface AIVideoData {
 
 export const calculatePlanDurationInFrames = (plan: AIVideoData, fps: number): number => {
 	const total = (plan.frames ?? []).reduce((sum, frame) => {
-		// Whiteboard diagrams get 18 seconds for slow pen tracing
+		// Whiteboard diagrams get 18 seconds total: ~65% for sketching phase, ~35% for hold/zoom phase
 		// Other frames use their specified duration or default to 4 seconds
 		let seconds: number;
 		if (frame.type === 'whiteboard_diagram') {
-			seconds = 18; // 18 seconds: 3s delay + 15s slow pen tracing
+			seconds = 18; // 18 seconds: lengthy sketch phase (~11.7s) + hold/zoom phase (~6.3s)
 		} else {
 			seconds = typeof frame.duration === 'number' && frame.duration > 0 ? frame.duration : 4;
 		}
@@ -320,20 +322,31 @@ const SketchingSVG: React.FC<{
 	}
 
 	// Calculate which paths should be visible - real sketching experience
-	// Use 18 seconds (540 frames at 30fps) for slow, deliberate pen tracing
-	const sketchingDurationInFrames = fps * 18; // 18 seconds = 540 frames at 30fps
+	// Split scene into two phases:
+	// Phase 1: Sketch animation (65% of scene duration) - lengthy drawing phase
+	// Phase 2: Hold + zoom (35% of scene duration) - completed sketch with camera movement
+	const sketchPhaseRatio = 0.65; // Use 65% of scene for sketching
+	const sketchPhaseDurationInFrames = Math.floor(durationInFrames * sketchPhaseRatio);
+	const holdPhaseDurationInFrames = durationInFrames - sketchPhaseDurationInFrames;
 	
-	// Add a 3-second delay before starting to draw (pen positioning and preparation)
-	const delayFrames = fps * 3; // 3 seconds delay for anticipation
+	// Add a brief delay before starting to draw (pen positioning and preparation)
+	const delayFrames = Math.floor(fps * 0.5); // 0.5 second delay for anticipation
 	const drawingStartFrame = delayFrames;
-	const drawingDurationFrames = sketchingDurationInFrames - delayFrames; // 15 seconds for slow pen tracing
+	const drawingDurationFrames = sketchPhaseDurationInFrames - delayFrames; // Rest of sketch phase for drawing
+	
+	// Determine if we're in sketch phase or hold phase
+	const isSketchPhase = currentFrame < sketchPhaseDurationInFrames;
+	const isHoldPhase = currentFrame >= sketchPhaseDurationInFrames;
 	
 	// Calculate progress: 0 during delay, then 0-1 during drawing
 	// Ensure it's truly progressive - no immediate jumps
 	let rawProgress = 0;
-	if (currentFrame >= drawingStartFrame) {
+	if (currentFrame >= drawingStartFrame && isSketchPhase) {
 		const drawingFrame = currentFrame - drawingStartFrame;
 		rawProgress = Math.min(1, Math.max(0, drawingFrame / drawingDurationFrames));
+	} else if (isHoldPhase) {
+		// In hold phase, sketch is complete
+		rawProgress = 1;
 	}
 	
 	// Apply EXTREMELY slow, smooth easing for very deliberate, progressive pen tracing
@@ -411,19 +424,40 @@ const SketchingSVG: React.FC<{
 	}
 	
 	// Determine completed paths: if current path is fully drawn, include it
-	const completedPathCount = currentPathProgress >= 1 ? currentPathIndex + 1 : currentPathIndex;
+	// In hold phase, all paths are completed
+	const completedPathCount = isHoldPhase 
+		? paths.length 
+		: (currentPathProgress >= 1 ? currentPathIndex + 1 : currentPathIndex);
 
-	// Subtle zoom animation during drawing (golpo.ai style)
-	const zoomProgress = interpolate(
-		currentFrame,
-		[0, sketchingDurationInFrames * 0.3],
-		[1, 1.02],
-		{
-			easing: Easing.out(Easing.ease),
-			extrapolateLeft: 'clamp',
-			extrapolateRight: 'clamp',
-		}
-	);
+	// Zoom animation: subtle zoom during sketch, then more pronounced zoom during hold phase
+	let zoomProgress = 1;
+	if (isSketchPhase) {
+		// Subtle zoom during sketch phase (gentle zoom in)
+		zoomProgress = interpolate(
+			currentFrame,
+			[0, sketchPhaseDurationInFrames * 0.4],
+			[1, 1.03],
+			{
+				easing: Easing.out(Easing.ease),
+				extrapolateLeft: 'clamp',
+				extrapolateRight: 'clamp',
+			}
+		);
+	} else if (isHoldPhase) {
+		// More pronounced zoom during hold phase (camera movement)
+		const holdPhaseFrame = currentFrame - sketchPhaseDurationInFrames;
+		const holdProgress = Math.min(1, holdPhaseFrame / holdPhaseDurationInFrames);
+		zoomProgress = interpolate(
+			holdProgress,
+			[0, 1],
+			[1.03, 1.08], // Continue zooming in during hold phase
+			{
+				easing: Easing.inOut(Easing.ease),
+				extrapolateLeft: 'clamp',
+				extrapolateRight: 'clamp',
+			}
+		);
+	}
 
 	return (
 		<AbsoluteFill
@@ -459,17 +493,26 @@ const SketchingSVG: React.FC<{
 						filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.08))', // Very subtle shadow
 					}}
 				>
-				<g fill="none" stroke="#000000" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-					{/* Show completed paths (fully drawn) */}
-					{paths.slice(0, completedPathCount).map((d, i) => (
-						<path key={`completed-${i}`} d={d} style={{opacity: 1}} />
-					))}
-					{/* Animate current path being drawn - ONE path at a time, sequentially */}
-					{currentPathIndex < paths.length && (
-						<AnimatedPath
-							d={paths[currentPathIndex]}
-							progress={currentPathProgress}
-						/>
+				<g fill="none" stroke="#000000" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round">
+					{isSketchPhase ? (
+						<>
+							{/* Show completed paths (fully drawn) */}
+							{paths.slice(0, completedPathCount).map((d, i) => (
+								<path key={`completed-${i}`} d={d} style={{opacity: 1}} />
+							))}
+							{/* Animate current path being drawn - ONE path at a time, sequentially */}
+							{currentPathIndex < paths.length && (
+								<AnimatedPath
+									d={paths[currentPathIndex]}
+									progress={currentPathProgress}
+								/>
+							)}
+						</>
+					) : (
+						/* In hold phase, show all paths completed */
+						paths.map((d, i) => (
+							<path key={`hold-${i}`} d={d} style={{opacity: 1}} />
+						))
 					)}
 				</g>
 			</svg>
@@ -478,13 +521,77 @@ const SketchingSVG: React.FC<{
 	);
 };
 
-const WhiteboardFrame: React.FC<{asset?: string; animate?: boolean; vectorized?: {svgUrl: string; width: number; height: number}}> = ({
+const WhiteboardFrame: React.FC<{
+	asset?: string;
+	animate?: boolean;
+	vectorized?: {svgUrl: string; width: number; height: number};
+	heading?: string;
+	text?: string;
+	svgString?: string; // Pre-loaded SVG string
+}> = ({
 	asset,
 	animate = false,
 	vectorized,
+	heading,
+	text,
+	svgString: providedSvgString,
 }) => {
-	const currentFrame = useCurrentFrame();
 	const {durationInFrames, fps} = useVideoConfig();
+	const [svgString, setSvgString] = React.useState<string | null>(providedSvgString || null);
+	const [isLoading, setIsLoading] = React.useState(!providedSvgString);
+	const [loadError, setLoadError] = React.useState(false);
+
+	// Load SVG string from URL (only if not provided)
+	React.useEffect(() => {
+		if (!animate || !vectorized || providedSvgString) {
+			setIsLoading(false);
+			return;
+		}
+
+		const loadSvg = async () => {
+			try {
+				setIsLoading(true);
+				setLoadError(false);
+
+				// Use staticFile for Remotion public directory access
+				const svgPath = vectorized.svgUrl.startsWith('/assets/')
+					? staticFile(vectorized.svgUrl.replace(/^\//, ''))
+					: vectorized.svgUrl;
+
+				// Try fetching via staticFile path
+				let response: Response;
+				try {
+					response = await fetch(svgPath, {
+						mode: 'cors',
+						credentials: 'omit',
+					});
+				} catch (e) {
+					// Fallback: try with localhost if it's a relative URL
+					const fallbackUrl = vectorized.svgUrl.startsWith('http')
+						? vectorized.svgUrl
+						: `http://localhost:3000${vectorized.svgUrl}`;
+					response = await fetch(fallbackUrl, {
+						mode: 'cors',
+						credentials: 'omit',
+					});
+				}
+
+				if (!response.ok) {
+					throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+				}
+
+				const svgText = await response.text();
+				setSvgString(svgText);
+				setIsLoading(false);
+			} catch (error) {
+				console.error('[WhiteboardFrame] Failed to load SVG:', error);
+				setLoadError(true);
+				setIsLoading(false);
+			}
+		};
+
+		loadSvg();
+	}, [vectorized?.svgUrl, animate, providedSvgString]);
 
 	if (!asset) {
 		return (
@@ -522,21 +629,55 @@ const WhiteboardFrame: React.FC<{asset?: string; animate?: boolean; vectorized?:
 		);
 	}
 
-	// True line-by-line sketching animation using vectorized SVG
-	if (animate && vectorized) {
+	// Use new WhiteboardAnimatorPrecise component for fast 3-second reveal
+	if (animate && vectorized && svgString) {
+		const sceneDurationSeconds = durationInFrames / fps;
 		return (
-			<SketchingSVG
-				svgUrl={vectorized.svgUrl}
-				width={vectorized.width}
-				height={vectorized.height}
-				durationInFrames={durationInFrames}
-				fallbackImage={asset}
+			<WhiteboardAnimatorPrecise
+				svgString={svgString}
+				sceneDurationSeconds={sceneDurationSeconds}
+				revealFinishSeconds={3}
+				revealStrategy="balanced"
+				text={text || heading}
+				showText={!!(text || heading)}
 			/>
 		);
 	}
 
-	// Fallback: Simple animated effects for static images
-	if (animate) {
+	// Loading state
+	if (animate && vectorized && isLoading) {
+		return (
+			<AbsoluteFill
+				style={{
+					backgroundColor: '#f8fafc',
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
+				}}
+			>
+				<div style={{ color: '#475569', fontSize: 24 }}>Loading sketch...</div>
+			</AbsoluteFill>
+		);
+	}
+
+	// Error state - fallback to static image
+	if (animate && vectorized && loadError) {
+		return (
+			<Img
+				src={asset}
+				style={{
+					width: '100%',
+					height: '100%',
+					objectFit: 'contain',
+					backgroundColor: '#f8fafc',
+				}}
+			/>
+		);
+	}
+
+	// Fallback: Simple animated effects for static images (when no vectorized SVG)
+	if (animate && !vectorized) {
+		const currentFrame = useCurrentFrame();
 		const animationDuration = Math.min(durationInFrames * 0.7, fps * 3); // 3 seconds or 70% of duration
 		
 		// Overall progress for the sketching animation
@@ -768,10 +909,10 @@ export const VideoFromAI: React.FC<{data: AIVideoData}> = ({data}) => {
 	return (
 		<AbsoluteFill style={{backgroundColor: '#f8fafc', color: '#0f172a'}}>
 			{filteredFrames.map((frame, index) => {
-				// Give whiteboard diagrams 18 seconds total for slow pen tracing
+				// Give whiteboard diagrams 18 seconds total: lengthy sketch phase + hold/zoom phase
 				let frameDuration = frame.duration ?? 4;
 				if (frame.type === 'whiteboard_diagram') {
-					frameDuration = 18; // 18 seconds: 3s delay + 15s slow pen tracing (no hold, transitions handle it)
+					frameDuration = 18; // 18 seconds: ~65% sketch phase (~11.7s) + ~35% hold/zoom phase (~6.3s)
 				}
 				const durationInFrames = Math.max(1, Math.round(frameDuration * fps));
 				
@@ -815,6 +956,9 @@ export const VideoFromAI: React.FC<{data: AIVideoData}> = ({data}) => {
 									asset={frame.asset} 
 									animate={frame.animate ?? false}
 									vectorized={frame.vectorized}
+									heading={frame.heading}
+									text={frame.text}
+									svgString={frame.svgString}
 								/>
 							) : (
 								<MotionFrame asset={frame.asset} />

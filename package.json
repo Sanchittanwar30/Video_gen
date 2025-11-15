@@ -12,6 +12,7 @@
     "image-gen": "python tools/image_gen.py",
     "render:low": "ts-node scripts/render-low-res.ts",
     "preview": "ts-node scripts/preview.ts",
+    "test:render": "ts-node scripts/test-render.ts",
     "typecheck": "tsc",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "start:api": "ts-node server/index.ts",

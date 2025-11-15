@@ -11,12 +11,14 @@ const ensureOutputDir = async () => {
 };
 
 export const renderStoryboardVideo = async (plan: AIVideoData): Promise<string> => {
-	// Convert voiceover URLs to paths relative to public directory
-	// Remotion's publicDir is set to 'public', so paths should be relative to that
+	// Pre-process frames: load SVG strings and convert paths
 	const planWithPublicPaths: AIVideoData = {
 		...plan,
 		frames: await Promise.all(
 			plan.frames.map(async (frame) => {
+				const updatedFrame = {...frame};
+
+				// Handle voiceover URLs
 				if (frame.voiceoverUrl && frame.voiceoverUrl.startsWith('/assets/')) {
 					// Convert /assets/voiceovers/... to assets/voiceovers/... (relative to public dir)
 					const publicRelativePath = frame.voiceoverUrl.replace(/^\//, '');
@@ -26,19 +28,38 @@ export const renderStoryboardVideo = async (plan: AIVideoData): Promise<string> 
 					try {
 						await fs.access(absolutePath);
 						console.log(`[AI Render] Using voiceover: ${publicRelativePath} (relative to public dir)`);
-						return {
-							...frame,
-							voiceoverUrl: publicRelativePath, // Use path relative to public directory
-						};
+						updatedFrame.voiceoverUrl = publicRelativePath; // Use path relative to public directory
 					} catch (error) {
 						console.warn(`[AI Render] Voiceover file not found: ${absolutePath}, skipping audio for frame ${frame.id}`);
-						return {
-							...frame,
-							voiceoverUrl: undefined,
-						};
+						updatedFrame.voiceoverUrl = undefined;
 					}
 				}
-				return frame;
+
+				// Pre-load SVG string if vectorized
+				if (frame.vectorized && frame.vectorized.svgUrl) {
+					try {
+						const svgPath = frame.vectorized.svgUrl.startsWith('/assets/')
+							? path.join(process.cwd(), 'public', frame.vectorized.svgUrl.replace(/^\//, ''))
+							: frame.vectorized.svgUrl;
+						
+						// Check if it's a file path (not HTTP URL)
+						if (!svgPath.startsWith('http')) {
+							try {
+								await fs.access(svgPath);
+								const svgString = await fs.readFile(svgPath, 'utf-8');
+								console.log(`[AI Render] Pre-loaded SVG for frame ${frame.id}: ${svgPath.substring(svgPath.lastIndexOf(path.sep) + 1)}`);
+								// Store SVG string in a custom field that will be passed to component
+								(updatedFrame as any).svgString = svgString;
+							} catch (error) {
+								console.warn(`[AI Render] SVG file not found: ${svgPath}, frame will try to load from URL`);
+							}
+						}
+					} catch (error) {
+						console.warn(`[AI Render] Failed to pre-load SVG for frame ${frame.id}:`, (error as Error).message);
+					}
+				}
+
+				return updatedFrame;
 			})
 		),
 	};

@@ -6,6 +6,7 @@ import path from 'path';
 import { config } from './config';
 import aiRoutes from './routes/ai';
 import generateVideoRoute from './routes/generateVideo';
+import colabRoutes from './routes/colab';
 import { VideoWebSocketServer } from './websocket';
 
 
@@ -18,6 +19,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/ai', aiRoutes);
+app.use('/api/colab', colabRoutes);
 app.use('/output', express.static(path.join(process.cwd(), 'output')));
 const assetsDirectory = process.env.ASSETS_DIR
 	? path.resolve(process.cwd(), process.env.ASSETS_DIR)
@@ -44,6 +46,12 @@ app.get('/', (req: Request, res: Response) => {
 		endpoints: {
 			health: '/health',
 			generateVideo: 'POST /api/generate-video',
+			colab: {
+				generate: 'POST /api/colab/generate',
+				status: 'GET /api/colab/status/:jobId',
+				download: 'GET /api/colab/download/:jobId',
+				pending: 'GET /api/colab/jobs/pending',
+			},
 		},
 	});
 });

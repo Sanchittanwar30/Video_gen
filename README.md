@@ -31,6 +31,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system documentation.
 - **Education-ready layouts**: Card-style text sections with progressive reveals for lessons or explainers
 - **Programmatic API**: Render videos from Node.js scripts
 - **Validation**: Automatic placeholder validation before rendering
+- **Google Colab Integration**: Offload heavy rendering to Colab's free GPU/CPU resources (see [colab/README.md](./colab/README.md))
 
 ## Project Structure
 
@@ -49,6 +50,10 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system documentation.
 ├── inputs/
 │   ├── promo-01-input.json          # Example input data
 │   └── education-sample.json        # Example lesson input data
+├── colab/
+│   ├── Video_Rendering_Colab.ipynb  # Google Colab notebook for rendering
+│   ├── upload_to_colab.py           # Script to prepare files for Colab
+│   └── colab-service.ts             # TypeScript service for Colab integration
 ├── scripts/
 │   └── preview.ts                   # Preview script for testing
 ├── package.json

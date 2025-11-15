@@ -64,8 +64,9 @@ export const vectorizeImage = async (imagePath: string, timeoutMs: number = 1500
 				throw new Error('Could not read image dimensions');
 			}
 
-			// Convert to grayscale and resize for quality (higher resolution = better detail)
-			const maxDimension = 1000; // Higher resolution for better quality
+			// Convert to grayscale and resize for image-focused vectorization
+			// Lower resolution = less detail capture, favors larger shapes over text
+			const maxDimension = 800; // Slightly lower resolution to reduce text detail capture
 			
 			// Resize to max dimension while maintaining aspect ratio
 			const scale = Math.min(maxDimension / metadata.width!, maxDimension / metadata.height!);
@@ -79,19 +80,19 @@ export const vectorizeImage = async (imagePath: string, timeoutMs: number = 1500
 					kernel: 'lanczos3', // High-quality resampling
 				})
 				.greyscale()
-				.normalize({lower: 5, upper: 95}) // Improve contrast for better tracing (wider range)
+				.normalize({lower: 20, upper: 80}) // Wide contrast range - strongly favors larger figures/diagrams, minimizes text detail
 				.png()
 				.toBuffer();
 			
 			console.log(`[Vectorizer] Resized from ${metadata.width}x${metadata.height} to ${targetWidth}x${targetHeight}`);
 
-			// Trace the image to SVG using potrace with quality settings
-			// Optimized for maximum detail and path count for smooth animation
+			// Trace the image to SVG using potrace with settings optimized for images over text
+			// Aggressively prioritize figures/diagrams and minimize text detail
 			const svgString = await trace(processedBuffer, {
-				threshold: 120, // Lower threshold = more detail and more paths (was 140)
+				threshold: 160, // Higher threshold = less detail, strongly favors larger shapes/figures over text
 				optCurve: true, // Enable curve optimization for smoother paths
 				optTolerance: 0.4, // Curve optimization tolerance
-				turdSize: 1, // Keep even more small shapes = more paths for better animation (was 2)
+				turdSize: 6, // Filter out many more small shapes (strongly reduces text detail, very figure-focused)
 				turnPolicy: 'minority' as string, // Use string literal instead of enum
 				alphamax: 1.0,
 			});
@@ -102,12 +103,30 @@ export const vectorizeImage = async (imagePath: string, timeoutMs: number = 1500
 				throw new Error('No paths found in vectorized image');
 			}
 
-			// Extract all path data
+			// Extract all path data and split by Move commands for smaller segments
 			const paths: string[] = [];
 			for (const pathTag of pathMatch) {
 				const dMatch = pathTag.match(/d="([^"]*)"/);
 				if (dMatch && dMatch[1]) {
-					paths.push(dMatch[1]);
+					const d = dMatch[1];
+					// Split d into segments at Move commands to enable strict top-to-bottom drawing
+					const segments: string[] = [];
+					let current = '';
+					for (let i = 0; i < d.length; i++) {
+						const ch = d[i];
+						if ((ch === 'M' || ch === 'm') && current.trim()) {
+							segments.push(current.trim());
+							current = ch;
+						} else {
+							current += ch;
+						}
+					}
+					if (current.trim()) segments.push(current.trim());
+					if (segments.length > 0) {
+						paths.push(...segments);
+					} else {
+						paths.push(d);
+					}
 				}
 			}
 
@@ -127,11 +146,56 @@ export const vectorizeImage = async (imagePath: string, timeoutMs: number = 1500
 			const svgFilename = `vectorized-${uuidv4()}.svg`;
 			const svgPath = path.join(assetsDir, svgFilename);
 			
-			// Create optimized SVG with all paths
+			// Sort paths top-to-bottom, then left-to-right using first Move coordinates
+			type Seg = { d: string; x: number; y: number };
+			const segs: Seg[] = paths.map((d) => {
+				const m = d.match(/^[Mm]\s*([-\d.]+)[,\s]+([-\d.]+)/);
+				const x = m ? parseFloat(m[1]) || 0 : 0;
+				const y = m ? parseFloat(m[2]) || 0 : 0;
+				return { d, x, y };
+			});
+			segs.sort((a, b) => {
+				const yDiff = a.y - b.y;
+				if (Math.abs(yDiff) > 0.01) return yDiff;
+				return a.x - b.x;
+			});
+
+			// Create optimized SVG - only fill VERY SMALL closed paths (character holes like 'o', 'a')
+			// NOT large letter outlines (like 'D', 'A') - keep those outline-only for readability
 			const optimizedSvg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-	<g fill="none" stroke="#000000" stroke-width="2">
-		${paths.map((d, i) => `<path d="${d}" id="path-${i}"/>`).join('\n\t\t')}
+	<g fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd">
+		${segs.map((s, i) => {
+			// Check if path is closed (ends with Z or z)
+			const isClosed = /[Zz]\s*$/.test(s.d.trim());
+			if (!isClosed) {
+				return `<path d="${s.d}" fill="none" id="path-${i}" vector-effect="non-scaling-stroke"/>`;
+			}
+			
+			// Calculate bounding box to determine if it's a small hole or large shape
+			const coords = s.d.match(/[-\d.]+/g)?.map(Number).filter(n => !isNaN(n)) || [];
+			if (coords.length < 4) {
+				return `<path d="${s.d}" fill="none" id="path-${i}" vector-effect="non-scaling-stroke"/>`;
+			}
+			
+			const xs = coords.filter((_, idx) => idx % 2 === 0);
+			const ys = coords.filter((_, idx) => idx % 2 === 1);
+			const bboxWidth = Math.max(...xs) - Math.min(...xs);
+			const bboxHeight = Math.max(...ys) - Math.min(...ys);
+			const area = bboxWidth * bboxHeight;
+			
+			// Only fill SMALL closed paths (< 2% of SVG area) - these are character interior holes
+			// Large closed paths (letter outlines like 'D', 'A') stay outline-only
+			// Increased thresholds to catch more character holes for readability
+			const maxArea = (width * height) * 0.02;  // 2% of area (was 1%)
+			const maxWidth = width * 0.06;  // 6% of width (was 4%)
+			const maxHeight = height * 0.06; // 6% of height (was 4%)
+			
+			const isSmallHole = area < maxArea && bboxWidth < maxWidth && bboxHeight < maxHeight;
+			const fillAttr = isSmallHole ? 'fill="#ffffff"' : 'fill="none"';
+			
+			return `<path d="${s.d}" ${fillAttr} id="path-${i}" vector-effect="non-scaling-stroke"/>`;
+		}).join('\n\t\t')}
 	</g>
 </svg>`;
 

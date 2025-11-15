@@ -95,6 +95,11 @@ export const renderStoryboardVideo = async (plan: AIVideoData): Promise<string> 
 			fps,
 		},
 		inputProps: {plan: planWithPublicPaths},
+		// High quality settings for sharp pixels (Full HD)
+		crf: 18, // Lower CRF = higher quality (18 is high quality, 23 is default)
+		imageFormat: 'jpeg',
+		jpegQuality: 95, // High quality JPEG for better pixel clarity
+		pixelFormat: 'yuv420p', // Standard pixel format for compatibility
 		onProgress: ({progress, renderedFrames, encodedFrames}) => {
 			if (progress % 10 === 0 || progress === 100) {
 				console.log(`[AI Render] Progress: ${progress.toFixed(1)}% | Rendered: ${renderedFrames}/${durationInFrames} frames | Encoded: ${encodedFrames} frames`);

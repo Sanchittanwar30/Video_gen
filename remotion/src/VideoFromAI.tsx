@@ -18,6 +18,7 @@ export interface AIVideoFrame {
 	type: 'whiteboard_diagram' | 'text_slide' | 'bullet_slide' | 'motion_scene';
 	heading?: string;
 	text?: string;
+	// Optional: authoring-time raw texts; we will auto-truncate for readability
 	bullets?: string[];
 	duration?: number;
 	asset?: string;
@@ -27,6 +28,14 @@ export interface AIVideoFrame {
 		width: number;
 		height: number;
 	};
+	// Optional: multiple vectorized items to compose a grid/montage
+	vectorizedList?: Array<{
+		svgUrl: string;
+		width: number;
+		height: number;
+	}>;
+	// Optional: multiple image assets for montage
+	assetsList?: string[];
 	voiceoverUrl?: string;
 	voiceoverScript?: string;
 	svgString?: string; // Pre-loaded SVG string content (loaded before render)
@@ -36,6 +45,18 @@ export interface AIVideoData {
 	title: string;
 	frames: AIVideoFrame[];
 }
+
+// Reduce text length for better readability in teaching flow
+const truncateForDisplay = (value: string | undefined, maxChars: number): string | undefined => {
+	if (!value) return value;
+	const trimmed = value.trim();
+	if (trimmed.length <= maxChars) return trimmed;
+	// Try to cut at a word boundary
+	const slice = trimmed.slice(0, maxChars);
+	const lastSpace = slice.lastIndexOf(' ');
+	const cut = lastSpace > 40 ? slice.slice(0, lastSpace) : slice;
+	return `${cut}…`;
+};
 
 export const calculatePlanDurationInFrames = (plan: AIVideoData, fps: number): number => {
 	const total = (plan.frames ?? []).reduce((sum, frame) => {
@@ -85,20 +106,49 @@ const TextSlide: React.FC<{frame: AIVideoFrame; startFrame: number; durationInFr
 				alignItems: 'center',
 				justifyContent: 'center',
 				padding: '120px',
-				background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+				background: '#ffffff',
 				color: '#0f172a',
 				opacity: progress,
 				transform: `translateY(${(1 - progress) * 35}px)`,
 			}}
 		>
 			{frame.heading ? (
-				<h1 style={{fontSize: 64, fontWeight: 700, marginBottom: 32, textAlign: 'center'}}>
-					{frame.heading}
+				<h1
+					style={{
+						fontSize: 72,
+						fontWeight: 900,
+						marginBottom: 28,
+						textAlign: 'center',
+						color: '#000',
+						letterSpacing: 0,
+						textRendering: 'geometricPrecision',
+						WebkitTextStroke: '0.3px #000',
+						textShadow: '0 0 1px #000, 0 0 0.5px #000',
+						WebkitFontSmoothing: 'antialiased',
+						MozOsxFontSmoothing: 'grayscale',
+					}}
+				>
+					{truncateForDisplay(frame.heading, 70)}
 				</h1>
 			) : null}
 			{frame.text ? (
-				<p style={{fontSize: 32, lineHeight: 1.5, maxWidth: 960, textAlign: 'center'}}>
-					{frame.text}
+				<p
+					style={{
+						fontSize: 40,
+						lineHeight: 1.35,
+						maxWidth: 900,
+						textAlign: 'center',
+						color: '#000',
+						fontWeight: 900,
+						letterSpacing: 0,
+						textRendering: 'geometricPrecision',
+						WebkitTextStroke: '0.25px #000',
+						textShadow: '0 0 1px #000, 0 0 0.5px #000',
+						WebkitFontSmoothing: 'antialiased',
+						MozOsxFontSmoothing: 'grayscale',
+					}}
+				>
+					{truncateForDisplay(frame.text, 140)}
 				</p>
 			) : null}
 		</div>
@@ -123,24 +173,38 @@ const BulletSlide: React.FC<{
 				alignItems: 'center',
 				justifyContent: 'center',
 				padding: '120px',
-				background: '#f9fafb',
+				background: '#ffffff',
 				color: '#0f172a',
 			}}
 		>
 			{frame.heading ? (
-				<h1 style={{fontSize: 60, fontWeight: 700, marginBottom: 36, textAlign: 'center'}}>
-					{frame.heading}
+				<h1
+					style={{
+						fontSize: 68,
+						fontWeight: 900,
+						marginBottom: 28,
+						textAlign: 'center',
+						color: '#000',
+						letterSpacing: 0,
+						textRendering: 'geometricPrecision',
+						WebkitTextStroke: '0.3px #000',
+						textShadow: '0 0 1px #000, 0 0 0.5px #000',
+						WebkitFontSmoothing: 'antialiased',
+						MozOsxFontSmoothing: 'grayscale',
+					}}
+				>
+					{truncateForDisplay(frame.heading, 70)}
 				</h1>
 			) : null}
 			<ul
 				style={{
 					listStyle: 'disc',
-					paddingLeft: 0,
+					paddingLeft: 24,
 					margin: 0,
 					display: 'flex',
 					flexDirection: 'column',
-					gap: 20,
-					maxWidth: 960,
+					gap: 18,
+					maxWidth: 900,
 				}}
 			>
 				{(frame.bullets ?? []).map((bullet, index) => {
@@ -154,13 +218,21 @@ const BulletSlide: React.FC<{
 						<li
 							key={`${frame.id}-bullet-${index}`}
 							style={{
-								fontSize: 28,
-								lineHeight: 1.5,
+								fontSize: 34,
+								lineHeight: 1.4,
 								opacity: progress,
 								transform: `translateY(${(1 - progress) * 15}px)`,
+								color: '#000',
+								fontWeight: 900,
+								letterSpacing: 0,
+								textRendering: 'geometricPrecision',
+								WebkitTextStroke: '0.2px #000',
+								textShadow: '0 0 1px #000, 0 0 0.5px #000',
+								WebkitFontSmoothing: 'antialiased',
+								MozOsxFontSmoothing: 'grayscale',
 							}}
 						>
-							{bullet}
+							{truncateForDisplay(bullet, 80)}
 						</li>
 					);
 				})}
@@ -249,18 +321,27 @@ const SketchingSVG: React.FC<{
 			pathElements.forEach((path) => {
 				const d = path.getAttribute('d');
 				if (d) {
-					// Extract starting coordinates from path data
-					// Path data format: "M x,y ..." or "m dx,dy ..."
-					const match = d.match(/^[Mm]\s*([-\d.]+)[,\s]+([-\d.]+)/);
-					let startX = 0;
-					let startY = 0;
-					
-					if (match) {
-						startX = parseFloat(match[1]) || 0;
-						startY = parseFloat(match[2]) || 0;
+					// Split a single path into segments on Move commands to enforce strict top-to-bottom
+					const parts: string[] = [];
+					let current = '';
+					for (let i = 0; i < d.length; i++) {
+						const ch = d[i];
+						if ((ch === 'M' || ch === 'm') && current.trim()) {
+							parts.push(current.trim());
+							current = ch;
+						} else {
+							current += ch;
+						}
 					}
-					
-					pathData.push({d, startX, startY});
+					if (current.trim()) parts.push(current.trim());
+					const segments = parts.length > 0 ? parts : [d];
+
+					segments.forEach(seg => {
+						const match = seg.match(/^[Mm]\s*([-\d.]+)[,\s]+([-\d.]+)/);
+						const startX = match ? parseFloat(match[1]) || 0 : 0;
+						const startY = match ? parseFloat(match[2]) || 0 : 0;
+						pathData.push({ d: seg, startX, startY });
+					});
 				}
 			});
 			
@@ -307,7 +388,7 @@ const SketchingSVG: React.FC<{
 					width: '100%',
 					height: '100%',
 					objectFit: 'contain',
-					backgroundColor: '#f8fafc',
+					backgroundColor: '#ffffff',
 				}}
 			/>
 		);
@@ -323,14 +404,14 @@ const SketchingSVG: React.FC<{
 
 	// Calculate which paths should be visible - real sketching experience
 	// Split scene into two phases:
-	// Phase 1: Sketch animation (65% of scene duration) - lengthy drawing phase
-	// Phase 2: Hold + zoom (35% of scene duration) - completed sketch with camera movement
-	const sketchPhaseRatio = 0.65; // Use 65% of scene for sketching
+	// Phase 1: Sketch animation (80% of scene duration) - hand-drawn look, slower
+	// Phase 2: Hold + zoom (20% of scene duration) - completed sketch with camera movement
+	const sketchPhaseRatio = 0.8; // Use 80% of scene for sketching (slower draw)
 	const sketchPhaseDurationInFrames = Math.floor(durationInFrames * sketchPhaseRatio);
 	const holdPhaseDurationInFrames = durationInFrames - sketchPhaseDurationInFrames;
 	
 	// Add a brief delay before starting to draw (pen positioning and preparation)
-	const delayFrames = Math.floor(fps * 0.5); // 0.5 second delay for anticipation
+	const delayFrames = Math.floor(fps * 0.3); // 0.3 second delay for anticipation
 	const drawingStartFrame = delayFrames;
 	const drawingDurationFrames = sketchPhaseDurationInFrames - delayFrames; // Rest of sketch phase for drawing
 	
@@ -462,11 +543,11 @@ const SketchingSVG: React.FC<{
 	return (
 		<AbsoluteFill
 			style={{
-				backgroundColor: '#f8fafc',
+				backgroundColor: '#0d5c2f', // Green board/chalkboard color
 				display: 'flex',
 				alignItems: 'center',
 				justifyContent: 'center',
-				padding: '0.5%', // Minimal padding - almost no white space
+				padding: '0.5%', // Minimal padding
 			}}
 		>
 			<div
@@ -493,12 +574,12 @@ const SketchingSVG: React.FC<{
 						filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.08))', // Very subtle shadow
 					}}
 				>
-				<g fill="none" stroke="#000000" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round">
+				<g fill="none" stroke="#ffffff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
 					{isSketchPhase ? (
 						<>
 							{/* Show completed paths (fully drawn) */}
 							{paths.slice(0, completedPathCount).map((d, i) => (
-								<path key={`completed-${i}`} d={d} style={{opacity: 1}} />
+								<path key={`completed-${i}`} d={d} style={{opacity: 1}} vectorEffect="non-scaling-stroke" />
 							))}
 							{/* Animate current path being drawn - ONE path at a time, sequentially */}
 							{currentPathIndex < paths.length && (
@@ -511,7 +592,7 @@ const SketchingSVG: React.FC<{
 					) : (
 						/* In hold phase, show all paths completed */
 						paths.map((d, i) => (
-							<path key={`hold-${i}`} d={d} style={{opacity: 1}} />
+							<path key={`hold-${i}`} d={d} style={{opacity: 1}} vectorEffect="non-scaling-stroke" />
 						))
 					)}
 				</g>
@@ -525,6 +606,7 @@ const WhiteboardFrame: React.FC<{
 	asset?: string;
 	animate?: boolean;
 	vectorized?: {svgUrl: string; width: number; height: number};
+	vectorizedList?: Array<{svgUrl: string; width: number; height: number}>;
 	heading?: string;
 	text?: string;
 	svgString?: string; // Pre-loaded SVG string
@@ -532,6 +614,7 @@ const WhiteboardFrame: React.FC<{
 	asset,
 	animate = false,
 	vectorized,
+	vectorizedList,
 	heading,
 	text,
 	svgString: providedSvgString,
@@ -599,12 +682,12 @@ const WhiteboardFrame: React.FC<{
 				style={{
 					width: '100%',
 					height: '100%',
-					background: '#f8fafc',
+					background: '#0d5c2f', // Green board/chalkboard color
 					display: 'flex',
 					alignItems: 'center',
 					justifyContent: 'center',
 					fontSize: 32,
-					color: '#475569',
+					color: '#ffffff',
 				}}
 			>
 				Whiteboard asset unavailable
@@ -623,23 +706,55 @@ const WhiteboardFrame: React.FC<{
 					width: '100%',
 					height: '100%',
 					objectFit: 'contain',
-					backgroundColor: '#f8fafc',
+					backgroundColor: '#0d5c2f', // Green board/chalkboard color
 				}}
 			/>
 		);
 	}
 
 	// Use new WhiteboardAnimatorPrecise component for fast 3-second reveal
+	if (animate && vectorizedList && vectorizedList.length > 0) {
+		// Montage: up to 3 items laid out horizontally; draw sequentially top-to-bottom within scene
+		const items = vectorizedList.slice(0, 3);
+		const segmentFrames = Math.max(1, Math.floor(durationInFrames / items.length));
+		return (
+			<AbsoluteFill style={{ backgroundColor: '#0d5c2f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+				<div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, 1fr)`, gap: '32px', width: '92%', height: '92%' }}>
+					{items.map((it, idx) => {
+						const start = idx * segmentFrames;
+						const segSeconds = segmentFrames / fps;
+						// Each column renders within its own sub-sequence; draw for most of its segment
+						return (
+							<Sequence key={`grid-${idx}`} from={start} durationInFrames={segmentFrames}>
+								<SketchingSVG
+									svgUrl={it.svgUrl}
+									width={it.width}
+									height={it.height}
+									durationInFrames={segmentFrames}
+								/>
+							</Sequence>
+						);
+					})}
+				</div>
+			</AbsoluteFill>
+		);
+	}
+
+	// Use new WhiteboardAnimatorPrecise component for slower reveal
 	if (animate && vectorized && svgString) {
 		const sceneDurationSeconds = durationInFrames / fps;
+		const revealSeconds = Math.min(
+			Math.max(6, sceneDurationSeconds * 0.75),
+			Math.max(1, sceneDurationSeconds - 1)
+		);
 		return (
 			<WhiteboardAnimatorPrecise
 				svgString={svgString}
 				sceneDurationSeconds={sceneDurationSeconds}
-				revealFinishSeconds={3}
-				revealStrategy="balanced"
-				text={text || heading}
-				showText={!!(text || heading)}
+				revealFinishSeconds={revealSeconds}
+				revealStrategy="sequential"
+				text={undefined}
+				showText={false}
 			/>
 		);
 	}
@@ -649,13 +764,13 @@ const WhiteboardFrame: React.FC<{
 		return (
 			<AbsoluteFill
 				style={{
-					backgroundColor: '#f8fafc',
+					backgroundColor: '#0d5c2f', // Green board/chalkboard color
 					display: 'flex',
 					alignItems: 'center',
 					justifyContent: 'center',
 				}}
 			>
-				<div style={{ color: '#475569', fontSize: 24 }}>Loading sketch...</div>
+				<div style={{ color: '#ffffff', fontSize: 24 }}>Loading sketch...</div>
 			</AbsoluteFill>
 		);
 	}
@@ -669,18 +784,18 @@ const WhiteboardFrame: React.FC<{
 					width: '100%',
 					height: '100%',
 					objectFit: 'contain',
-					backgroundColor: '#f8fafc',
+					backgroundColor: '#0d5c2f', // Green board/chalkboard color
 				}}
 			/>
 		);
 	}
 
-	// Fallback: Simple animated effects for static images (when no vectorized SVG)
+	// Fallback: Minimal reveal for static images (when no vectorized SVG) - no pen cursor, no heavy mask
 	if (animate && !vectorized) {
 		const currentFrame = useCurrentFrame();
-		const animationDuration = Math.min(durationInFrames * 0.7, fps * 3); // 3 seconds or 70% of duration
+		const animationDuration = Math.min(durationInFrames * 0.6, fps * 2.5); // short fade-in only
 		
-		// Overall progress for the sketching animation
+		// Simple fade
 		const sketchProgress = interpolate(
 			currentFrame,
 			[0, animationDuration],
@@ -704,23 +819,10 @@ const WhiteboardFrame: React.FC<{
 			}
 		);
 
-		// Create a more organic reveal pattern - simulates drawing from top-left, following a path
-		// Uses a combination of diagonal and circular reveals for a more natural sketching feel
-		const diagonalProgress = sketchProgress;
-		const circularReveal = Math.sin(sketchProgress * Math.PI * 2) * 0.3 + 0.7; // Oscillating reveal
-		
-		// Mask that reveals in a sketching pattern (top-left to bottom-right with variations)
-		const maskWidth = Math.min(100, diagonalProgress * 120); // Slightly overshoots for smoothness
-		const maskHeight = Math.min(100, diagonalProgress * 110);
-		
-		// Pen cursor position (follows the reveal)
-		const penX = interpolate(sketchProgress, [0, 1], [10, 90], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-		const penY = interpolate(sketchProgress, [0, 1], [15, 85], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-
 		return (
 			<AbsoluteFill
 				style={{
-					backgroundColor: '#f8fafc',
+					backgroundColor: '#0d5c2f', // Green board/chalkboard color
 					overflow: 'hidden',
 				}}
 			>
@@ -732,56 +834,15 @@ const WhiteboardFrame: React.FC<{
 						opacity: fadeIn,
 					}}
 				>
-					{/* Main image */}
 					<Img
 						src={asset}
 						style={{
 							width: '100%',
 							height: '100%',
 							objectFit: 'contain',
-							filter: sketchProgress < 1 ? 'blur(0.5px)' : 'blur(0px)', // Slight blur during drawing
+							filter: sketchProgress < 1 ? 'blur(0.5px)' : 'blur(0px)',
 						}}
 					/>
-					
-					{/* Sketching reveal mask - creates organic drawing effect */}
-					<div
-						style={{
-							position: 'absolute',
-							top: 0,
-							left: 0,
-							width: '100%',
-							height: '100%',
-							background: `linear-gradient(
-								135deg,
-								#f8fafc ${(1 - maskWidth) * 100}%,
-								transparent ${(1 - maskWidth * 0.7) * 100}%
-							)`,
-							clipPath: sketchProgress < 1 
-								? `polygon(0% 0%, ${maskWidth}% 0%, ${maskWidth * 0.9}% ${maskHeight}%, 0% ${maskHeight}%)`
-								: 'none',
-							transition: 'clip-path 0.05s linear',
-						}}
-					/>
-					
-					{/* Optional: Pen cursor effect (visual indicator of drawing) */}
-					{sketchProgress < 0.95 && (
-						<div
-							style={{
-								position: 'absolute',
-								left: `${penX}%`,
-								top: `${penY}%`,
-								width: '20px',
-								height: '20px',
-								borderRadius: '50%',
-								background: 'rgba(59, 130, 246, 0.6)',
-								border: '2px solid rgba(59, 130, 246, 0.9)',
-								transform: 'translate(-50%, -50%)',
-								boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)',
-								pointerEvents: 'none',
-								opacity: fadeIn * 0.8,
-							}}
-						/>
-					)}
 				</div>
 			</AbsoluteFill>
 		);
@@ -795,7 +856,7 @@ const WhiteboardFrame: React.FC<{
 				width: '100%',
 				height: '100%',
 				objectFit: 'contain',
-				backgroundColor: '#f8fafc',
+				backgroundColor: '#0d5c2f', // Green board/chalkboard color
 			}}
 		/>
 	);
@@ -907,7 +968,7 @@ export const VideoFromAI: React.FC<{data: AIVideoData}> = ({data}) => {
 	const transitionDuration = fps * 1.2; // 1.2 second smooth cross-fade for better continuity
 
 	return (
-		<AbsoluteFill style={{backgroundColor: '#f8fafc', color: '#0f172a'}}>
+		<AbsoluteFill style={{backgroundColor: '#0d5c2f', color: '#ffffff'}}>
 			{filteredFrames.map((frame, index) => {
 				// Give whiteboard diagrams 18 seconds total: lengthy sketch phase + hold/zoom phase
 				let frameDuration = frame.duration ?? 4;

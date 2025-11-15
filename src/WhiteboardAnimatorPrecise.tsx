@@ -21,6 +21,7 @@ interface PathData {
 	length: number;
 	startX: number;
 	startY: number;
+	isTextLike?: boolean; // Small, closed paths likely to be text glyphs
 }
 
 /**
@@ -282,6 +283,9 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 
 			pathElements.forEach((pathElement) => {
 				const d = pathElement.getAttribute('d');
+				const fillAttr = pathElement.getAttribute('fill');
+				const hasFill = fillAttr && fillAttr !== 'none';
+				
 				if (d) {
 					// Split path into segments based on Move commands (M or m)
 					// Each Move command starts a new drawing segment that should animate independently
@@ -327,6 +331,53 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 						parts.push(currentPart.trim());
 					}
 					
+					// Helper to detect if path should be filled (small closed paths = text glyphs only)
+					// Only fill small closed paths to avoid big white blocks - these are text character interiors
+					const detectShouldFill = (pathD: string): boolean => {
+						// Must be closed (explicitly or implicitly)
+						const isExplicitlyClosed = /[Zz]\s*$/.test(pathD.trim());
+						
+						// Extract all coordinates to estimate bounding box
+						const coords = pathD.match(/[-\d.]+/g)?.map(Number).filter(n => !isNaN(n)) || [];
+						if (coords.length < 4) return false;
+						
+						const xs = coords.filter((_, i) => i % 2 === 0);
+						const ys = coords.filter((_, i) => i % 2 === 1);
+						const minX = Math.min(...xs);
+						const maxX = Math.max(...xs);
+						const minY = Math.min(...ys);
+						const maxY = Math.max(...ys);
+						
+						const bboxWidth = maxX - minX;
+						const bboxHeight = maxY - minY;
+						const area = bboxWidth * bboxHeight;
+						
+						// Check if path is implicitly closed (start and end close together)
+						// Use larger threshold to catch more closed paths that might have slight gaps
+						const firstMove = pathD.match(/^[Mm]\s*([-\d.]+)[,\s]+([-\d.]+)/);
+						let isClosed = isExplicitlyClosed;
+						if (!isClosed && firstMove) {
+							const startX = parseFloat(firstMove[1]) || 0;
+							const startY = parseFloat(firstMove[2]) || 0;
+							const lastX = coords[coords.length - 2];
+							const lastY = coords[coords.length - 1];
+							const distance = Math.sqrt(Math.pow(lastX - startX, 2) + Math.pow(lastY - startY, 2));
+							// Increased threshold from 2px to 5px to catch more closed paths
+							isClosed = distance < 5;
+						}
+						
+						if (!isClosed) return false;
+						
+						// Fill SMALL closed paths (character interior holes like 'o', 'a', 'e', 'b', 'd', 'p', 'q')
+						// NOT large letter outlines like 'D', 'A' - those should stay outline-only
+						// Slightly increased threshold to catch more character holes
+						const maxArea = (width * height) * 0.02;  // 2% of SVG area (was 1%)
+						const maxWidth = width * 0.06;  // Max 6% of width (was 4%)
+						const maxHeight = height * 0.06; // Max 6% of height (was 4%)
+						
+						return area < maxArea && bboxWidth < maxWidth && bboxHeight < maxHeight;
+					};
+					
 					// Process parts - each part should be a valid path segment
 					if (parts.length > 1) {
 						// Multiple segments - process each independently for animation
@@ -340,8 +391,10 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 							
 							// Estimate path length for this segment
 							const estimatedLength = estimatePathLength(segment, width, height);
+							// If SVG has fill attribute, use it; otherwise detect from path shape
+							const isTextLike = hasFill || detectShouldFill(segment);
 							
-							pathData.push({ d: segment, length: estimatedLength, startX, startY });
+							pathData.push({ d: segment, length: estimatedLength, startX, startY, isTextLike });
 						});
 					} else if (parts.length === 1) {
 						// Single segment
@@ -350,14 +403,18 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 						const startX = coordMatch ? parseFloat(coordMatch[1]) || 0 : 0;
 						const startY = coordMatch ? parseFloat(coordMatch[2]) || 0 : 0;
 						const estimatedLength = estimatePathLength(segment, width, height);
-						pathData.push({ d: segment, length: estimatedLength, startX, startY });
+						// If SVG has fill attribute, use it; otherwise detect from path shape
+						const isTextLike = hasFill || detectShouldFill(segment);
+						pathData.push({ d: segment, length: estimatedLength, startX, startY, isTextLike });
 					} else {
 						// No segments found - treat entire path as one
 						const coordMatch = d.match(/^[Mm]\s*([-\d.]+)[,\s]+([-\d.]+)/);
 						const startX = coordMatch ? parseFloat(coordMatch[1]) || 0 : 0;
 						const startY = coordMatch ? parseFloat(coordMatch[2]) || 0 : 0;
 						const estimatedLength = estimatePathLength(d, width, height);
-						pathData.push({ d, length: estimatedLength, startX, startY });
+						// If SVG has fill attribute, use it; otherwise detect from path shape
+						const isTextLike = hasFill || detectShouldFill(d);
+						pathData.push({ d, length: estimatedLength, startX, startY, isTextLike });
 					}
 				}
 			});
@@ -458,32 +515,20 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 		  )
 		: 1;
 
-	// Text fade-in near end of reveal (starts at 70% of reveal)
-	const textFadeStart = revealDurationInFrames * 0.7;
-	const textOpacity = isRevealPhase
-		? interpolate(
-				currentFrame,
-				[textFadeStart, revealDurationInFrames],
-				[0, 1],
-				{
-					easing: Easing.out(Easing.ease),
-					extrapolateLeft: 'clamp',
-					extrapolateRight: 'clamp',
-				}
-		  )
-		: 1;
+	// Keep overlay text disabled (per preference)
+	const textOpacity = 0;
 
 	if (isLoading) {
 		return (
 			<AbsoluteFill
 				style={{
-					backgroundColor: '#f8fafc',
+					backgroundColor: '#0d5c2f', // Green board/chalkboard color
 					display: 'flex',
 					alignItems: 'center',
 					justifyContent: 'center',
 				}}
 			>
-				<div style={{ color: '#475569', fontSize: 24 }}>Loading sketch...</div>
+				<div style={{ color: '#ffffff', fontSize: 24 }}>Loading sketch...</div>
 			</AbsoluteFill>
 		);
 	}
@@ -492,13 +537,13 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 		return (
 			<AbsoluteFill
 				style={{
-					backgroundColor: '#f8fafc',
+					backgroundColor: '#0d5c2f', // Green board/chalkboard color
 					display: 'flex',
 					alignItems: 'center',
 					justifyContent: 'center',
 				}}
 			>
-				<div style={{ color: '#475569', fontSize: 24 }}>No paths found in SVG</div>
+				<div style={{ color: '#ffffff', fontSize: 24 }}>No paths found in SVG</div>
 			</AbsoluteFill>
 		);
 	}
@@ -506,7 +551,7 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 	return (
 		<AbsoluteFill
 			style={{
-				backgroundColor: '#f8fafc',
+				backgroundColor: '#0d5c2f', // Green board/chalkboard color
 				display: 'flex',
 				alignItems: 'center',
 				justifyContent: 'center',
@@ -536,7 +581,39 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 						height: 'auto',
 					}}
 				>
-					<g fill="none" stroke="#000000" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round" strokeMiterlimit="10">
+					{/* Fill layer: white fill for all closed paths (rendered BEHIND strokes) */}
+					<g fill="#ffffff" stroke="none" fillRule="evenodd">
+						{paths.map((path, index) => {
+							if (!path.isTextLike) return null;
+							
+							const pathProgress = isHoldPhase ? 1 : getPathProgress(index, paths.length);
+							
+							// Fill appears as soon as stroke starts (50% progress) to fill gaps immediately
+							const fillProgress = interpolate(
+								pathProgress,
+								[0.5, 1],
+								[0, 1], // Solid white fill (100% opacity) to completely fill gaps
+								{
+									extrapolateLeft: 'clamp',
+									extrapolateRight: 'clamp',
+									easing: Easing.inOut(Easing.ease),
+								}
+							);
+							
+							if (fillProgress <= 0) return null;
+							
+							return (
+								<path
+									key={`fill-${index}`}
+									d={path.d}
+									opacity={fillProgress}
+									fillOpacity={1} // Explicitly set to ensure full opacity
+								/>
+							);
+						})}
+					</g>
+					{/* Stroke layer: outline animation - white/chalk color on green board */}
+					<g fill="none" stroke="#ffffff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" strokeMiterlimit="10">
 						{paths.map((path, index) => {
 							const pathProgress = isHoldPhase ? 1 : getPathProgress(index, paths.length);
 							
@@ -576,35 +653,14 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 									d={path.d}
 									strokeDasharray={dashArray}
 									strokeDashoffset={dashOffset}
+									vectorEffect="non-scaling-stroke"
 								/>
 							);
 						})}
 					</g>
 				</svg>
 
-				{/* Text overlay (fades in near end of reveal) */}
-				{showText && text && (
-					<div
-						style={{
-							position: 'absolute',
-							bottom: '10%',
-							left: '50%',
-							transform: 'translateX(-50%)',
-							padding: '16px 32px',
-							background: 'rgba(15, 23, 42, 0.85)',
-							borderRadius: '12px',
-							color: '#ffffff',
-							fontSize: '24px',
-							fontFamily: 'Arial, sans-serif',
-							opacity: textOpacity,
-							backdropFilter: 'blur(8px)',
-							boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
-							transition: 'opacity 0.3s ease',
-						}}
-					>
-						{text}
-					</div>
-				)}
+				{/* Overlay text removed */}
 			</div>
 		</AbsoluteFill>
 	);

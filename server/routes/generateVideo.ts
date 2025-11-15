@@ -50,16 +50,18 @@ router.post('/generate-video', async (req: Request, res: Response) => {
 			if (frame.type === 'whiteboard_diagram' && frame.prompt_for_image) {
 				console.log(`[Generate Video] Generating image for frame: ${frame.id} (${index + 1}/${sketchOnlyFrames.length})`);
 				
-				// Enhance the prompt for better quality and detail
-				const enhancedPrompt = `Create a detailed, educational whiteboard diagram. ${frame.prompt_for_image}
+				// Enhance the prompt for figure-focused diagrams with minimal text
+				const enhancedPrompt = `Create a visual, figure-focused whiteboard diagram. ${frame.prompt_for_image}
 
 Requirements:
-- High detail and clarity
-- Include labels, arrows, annotations
-- Professional whiteboard style
-- Clear visual hierarchy
-- Educational and informative
-- Rich context and comprehensive content`;
+- Focus on diagrams, shapes, figures, and visual elements (MINIMAL TEXT - only essential labels if needed)
+- Use large, clear diagrams and illustrations instead of text explanations
+- Professional whiteboard sketch style with drawings, arrows, and visual connections
+- Prioritize visual storytelling through figures, charts, and diagrams
+- Avoid text-heavy content - use visual representations instead
+- Keep any text labels small and minimal (less than 10% of the image)
+- Emphasize geometric shapes, flowcharts, diagrams, and visual concepts
+- Make it illustration-heavy and text-light`;
 				
 				// Add small delay between image generations to avoid rate limiting
 				if (index > 0) {

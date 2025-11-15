@@ -30,11 +30,13 @@ Only use: "whiteboard_diagram" frame type.
 
 CRITICAL REQUIREMENTS:
 - Generate EXACTLY 2 whiteboard diagram frames (no more, no less)
-- Each frame must be DETAILED and EDUCATIONAL with rich context
-- First frame: Introduction/overview of the topic
-- Second frame: Detailed explanation or deeper dive
-- Include labels, arrows, annotations, and visual elements
-- Make each sketch comprehensive and informative
+- Each frame must be VISUAL and FIGURE-FOCUSED with minimal text
+- First frame: Introduction/overview using diagrams and figures
+- Second frame: Detailed explanation using visual diagrams and shapes
+- Focus on diagrams, shapes, figures, flowcharts, and visual elements
+- MINIMAL TEXT - only essential labels if needed (less than 10% text)
+- Prioritize geometric shapes, visual connections, and diagrammatic representations
+- Make each sketch illustration-heavy and text-light
 
 Given topic + description, output:
 {
@@ -43,14 +45,14 @@ Given topic + description, output:
     {
       "id": "frame_1",
       "type": "whiteboard_diagram",
-      "prompt_for_image": "DETAILED description for first whiteboard diagram. Must include: specific elements to draw, labels, arrows, annotations, relationships, visual hierarchy. Be comprehensive and educational. This is the introduction/overview frame.",
+      "prompt_for_image": "VISUAL description for first whiteboard diagram. Focus on: diagrams, shapes, figures, flowcharts, visual elements. MINIMAL TEXT - only essential labels if needed. Emphasize geometric shapes, visual connections, and diagrammatic representations. Keep text less than 10% of the image. This is the introduction/overview frame.",
       "heading": "optional string for context",
       "duration": 4
     },
     {
       "id": "frame_2",
       "type": "whiteboard_diagram",
-      "prompt_for_image": "DETAILED description for second whiteboard diagram. Must include: specific elements to draw, labels, arrows, annotations, relationships, visual hierarchy. Be comprehensive and educational. This is the detailed explanation frame.",
+      "prompt_for_image": "VISUAL description for second whiteboard diagram. Focus on: diagrams, shapes, figures, flowcharts, visual elements. MINIMAL TEXT - only essential labels if needed. Emphasize geometric shapes, visual connections, and diagrammatic representations. Keep text less than 10% of the image. This is the detailed explanation frame.",
       "heading": "optional string for context",
       "duration": 4
     }
@@ -58,9 +60,9 @@ Given topic + description, output:
 }
 
 EXAMPLE of good prompt_for_image:
-"A detailed whiteboard diagram showing [concept]. Include: [specific elements], labeled with [labels], connected by arrows showing [relationships]. Add annotations explaining [details]. Use visual hierarchy with [elements] in the center and [supporting elements] around it."
+"A visual whiteboard diagram showing [concept] using [geometric shapes/diagrams/flowcharts]. Include: [visual elements like circles, boxes, arrows connecting shapes]. MINIMAL TEXT - only essential labels if needed (less than 10% text). Focus on visual storytelling through diagrams and figures rather than text."
 
-Focus on visual storytelling through DETAILED, HIGH-QUALITY sketches. Generate EXACTLY 2 comprehensive whiteboard diagram frames that explain the topic.
+Focus on visual storytelling through DIAGRAMS, FIGURES, and SHAPES. Generate EXACTLY 2 figure-focused whiteboard diagram frames with minimal text that explain the topic visually.
 The JSON must be valid. No prose or markdown.`;
 
 const validatePlan = (plan: StructuredVideoPlan): StructuredVideoPlan => {
@@ -144,7 +146,7 @@ export const generateStructuredJSON = async (
 Topic: ${topic}
 ${description ? `Description: ${description}` : ''}
 
-CRITICAL: Generate EXACTLY 2 detailed whiteboard diagram frames. Each prompt_for_image must be comprehensive (at least 150+ characters) with specific visual elements, labels, arrows, and annotations.`.trim()
+CRITICAL: Generate EXACTLY 2 figure-focused whiteboard diagram frames. Each prompt_for_image must emphasize diagrams, shapes, figures, and visual elements. MINIMAL TEXT - only essential labels if needed (less than 10% text). Focus on geometric shapes, flowcharts, and visual connections.`.trim()
 		);
 		const plan = JSON.parse(response) as StructuredVideoPlan;
 		return validatePlan(plan);
@@ -155,7 +157,7 @@ CRITICAL: Generate EXACTLY 2 detailed whiteboard diagram frames. Each prompt_for
 Topic: ${topic}
 ${description ? `Description: ${description}` : ''}
 
-CRITICAL: Generate EXACTLY 2 detailed whiteboard diagram frames. Each prompt_for_image must be comprehensive (at least 150+ characters) with specific visual elements, labels, arrows, and annotations.
+CRITICAL: Generate EXACTLY 2 figure-focused whiteboard diagram frames. Each prompt_for_image must emphasize diagrams, shapes, figures, and visual elements. MINIMAL TEXT - only essential labels if needed (less than 10% text). Focus on geometric shapes, flowcharts, and visual connections.
 
 IMPORTANT: Respond with ONLY valid JSON. No commentary.`.trim();
 

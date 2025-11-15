@@ -7,6 +7,7 @@ import { config } from './config';
 import aiRoutes from './routes/ai';
 import generateVideoRoute from './routes/generateVideo';
 import colabRoutes from './routes/colab';
+import vectorizeRoutes from './routes/vectorize';
 import { VideoWebSocketServer } from './websocket';
 
 
@@ -20,6 +21,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/ai', aiRoutes);
 app.use('/api/colab', colabRoutes);
+app.use('/api/vectorize', vectorizeRoutes);
 app.use('/output', express.static(path.join(process.cwd(), 'output')));
 const assetsDirectory = process.env.ASSETS_DIR
 	? path.resolve(process.cwd(), process.env.ASSETS_DIR)

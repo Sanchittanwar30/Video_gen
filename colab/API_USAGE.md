@@ -227,22 +227,48 @@ const status = await waitForCompletion(jobId);
 
 ## Setting Up Colab Notebook
 
-1. **Update API URL in Colab notebook:**
-   ```python
-   API_BASE_URL = "https://your-server.com"  # Your public API URL
+### Option 1: Using ngrok (Recommended for Local Development)
+
+1. **Start your API server:**
+   ```bash
+   npm run start:api
    ```
 
-2. **Run the notebook cells** - it will automatically:
+2. **Start ngrok tunnel:**
+   ```bash
+   ngrok http 3000
+   # Or use helper script: ./colab/start-ngrok.sh
+   ```
+
+3. **Copy the ngrok URL** (e.g., `https://abc123.ngrok-free.app`)
+
+4. **Update API URL in Colab notebook:**
+   ```python
+   API_BASE_URL = "https://abc123.ngrok-free.app"
+   ```
+
+5. **Test the connection:**
+   ```bash
+   python colab/test-ngrok-connection.py https://abc123.ngrok-free.app
+   ```
+
+6. **Run the notebook cells** - it will automatically:
    - Poll for pending jobs
    - Download video plans
    - Render videos
    - Call back to your server
 
-3. **For local development**, use ngrok or similar:
-   ```bash
-   ngrok http 3000
-   # Use the ngrok URL as API_BASE_URL in Colab
-   ```
+**Note:** Free ngrok tunnels close after 2 hours. Restart ngrok and update the URL if needed.
+
+### Option 2: Deployed Server
+
+If your API is deployed (Heroku, Railway, etc.):
+
+```python
+API_BASE_URL = "https://your-deployed-api.com"
+```
+
+See [ngrok-setup.md](./ngrok-setup.md) for detailed ngrok instructions.
 
 ## Error Handling
 

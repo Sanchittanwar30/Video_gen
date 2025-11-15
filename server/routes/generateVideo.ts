@@ -45,7 +45,7 @@ router.post('/generate-video', async (req: Request, res: Response) => {
 		const framesWithAssets = [];
 		for (let index = 0; index < sketchOnlyFrames.length; index++) {
 			const frame = sketchOnlyFrames[index];
-			let frameWithAssets = {...frame};
+			let frameWithAssets: any = {...frame};
 			
 			if (frame.type === 'whiteboard_diagram' && frame.prompt_for_image) {
 				console.log(`[Generate Video] Generating image for frame: ${frame.id} (${index + 1}/${sketchOnlyFrames.length})`);

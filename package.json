@@ -13,6 +13,8 @@
     "render:low": "ts-node scripts/render-low-res.ts",
     "preview": "ts-node scripts/preview.ts",
     "test:render": "ts-node scripts/test-render.ts",
+    "colab:test": "python colab/test-ngrok-connection.py",
+    "colab:ngrok": "ngrok http 3000",
     "typecheck": "tsc",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "start:api": "ts-node server/index.ts",

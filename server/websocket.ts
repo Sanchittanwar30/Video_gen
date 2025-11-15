@@ -1,6 +1,4 @@
 import {WebSocketServer, WebSocket} from 'ws';
-import {config} from './config';
-import {videoQueueEvents} from './queue';
 
 /**
  * WebSocket server for real-time job status updates
@@ -46,8 +44,7 @@ export class VideoWebSocketServer {
 			});
 		});
 
-		// Listen to queue events and broadcast to subscribed clients
-		this.setupQueueEventListeners();
+		console.log(`[WebSocket] listening on port ${port}`);
 	}
 
 	private generateClientId(): string {
@@ -79,43 +76,6 @@ export class VideoWebSocketServer {
 			default:
 				console.warn(`Unknown message type: ${data.type}`);
 		}
-	}
-
-	private setupQueueEventListeners() {
-		// Listen for job completion
-		videoQueueEvents.on('completed', ({jobId, returnvalue}) => {
-			this.broadcastToJob(jobId, {
-				type: 'job-completed',
-				jobId,
-				result: returnvalue,
-			});
-		});
-
-		// Listen for job failure
-		videoQueueEvents.on('failed', ({jobId, failedReason}) => {
-			this.broadcastToJob(jobId, {
-				type: 'job-failed',
-				jobId,
-				error: failedReason,
-			});
-		});
-
-		// Listen for job progress
-		videoQueueEvents.on('progress', ({jobId, data}) => {
-			this.broadcastToJob(jobId, {
-				type: 'job-progress',
-				jobId,
-				progress: data,
-			});
-		});
-
-		// Listen for job active
-		videoQueueEvents.on('active', ({jobId}) => {
-			this.broadcastToJob(jobId, {
-				type: 'job-active',
-				jobId,
-			});
-		});
 	}
 
 	/**

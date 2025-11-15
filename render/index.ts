@@ -1,11 +1,14 @@
 import {bundle} from '@remotion/bundler';
 import {renderMedia, selectComposition} from '@remotion/renderer';
 import axios from 'axios';
-import {existsSync, readFileSync, writeFileSync, mkdirSync} from 'fs';
+import {existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync} from 'fs';
 import {join, dirname, extname, resolve} from 'path';
+import {buildPresentationFromVideo} from '../server/services/presentation-builder';
+import type {PresentationBuildRequest, PresentationContent} from '../src/types/presentation';
+import {STYLE_TOKENS} from '../src/styleConfig';
 
 /**
- * Interface for render options
+ * Interface for render options //to be visited
  */
 export interface RenderTemplateOptions {
 	templatePath: string;
@@ -347,6 +350,12 @@ export async function renderTemplateToMp4(
 		process.env.REMOTION_FFPROBE_EXECUTABLE ||
 		process.env.REMOTION_FFPROBE_BINARY;
 
+	const browserExecutable =
+		process.env.REMOTION_BROWSER_EXECUTABLE ||
+		process.env.BROWSER_EXECUTABLE ||
+		process.env.CHROME_EXECUTABLE;
+	const browserTimeout = Number(process.env.REMOTION_BROWSER_TIMEOUT ?? 60000);
+
 	// Try to use lower quality settings to potentially avoid FFmpeg issues
 	// Also try using different codec options
 	const renderOptions: any = {
@@ -372,6 +381,13 @@ export async function renderTemplateToMp4(
 		videoBitrate: null,
 		audioBitrate: null,
 		omitAudio: !hasAudioTracks,
+		timeoutInMilliseconds: browserTimeout,
+		browserExecutable: browserExecutable ?? undefined,
+		chromiumOptions: {
+			// Reuse existing browser if available, helps on Windows where launch can be slow
+			executablePath: browserExecutable ?? undefined,
+			gl: process.env.REMOTION_CHROMIUM_GL ?? undefined,
+		},
 		ffmpegOverride: ({args, type}: {args: string[]; type: string}) => {
 			if (
 				process.platform !== 'darwin' ||
@@ -410,6 +426,11 @@ export async function renderTemplateToMp4(
 		},
 	};
 
+	if (browserExecutable) {
+		console.log(`  Using custom Chrome executable: ${browserExecutable}`);
+	}
+	console.log(`  Browser launch timeout: ${browserTimeout}ms`);
+
 	if (ffmpegExecutable) {
 		renderOptions.ffmpegExecutable = ffmpegExecutable;
 		console.log(`  Using custom FFmpeg binary: ${ffmpegExecutable}`);
@@ -441,6 +462,172 @@ export async function renderTemplateToMp4(
 	});
 
 	console.log(`Render complete! Output saved to: ${outPath}`);
+}
+
+export interface RenderOcrPresentationOptions extends PresentationBuildRequest {
+	outPath: string;
+}
+
+export async function renderOcrPresentation(options: RenderOcrPresentationOptions): Promise<void> {
+	console.log('Analyzing source video for OCR-driven presentation...');
+	const buildResult = await buildPresentationFromVideo(options);
+
+	const bundled = await bundle({
+		entryPoint: join(__dirname, '../src/index.tsx'),
+		webpackOverride: (config) => config,
+	});
+
+	const composition = await selectComposition({
+		serveUrl: bundled,
+		id: 'OcrPresentation',
+		inputProps: {
+			content: buildResult.content,
+		},
+	});
+
+	const renderOptions = {
+		composition: {
+			...composition,
+			durationInFrames: buildResult.durationInFrames,
+			fps: buildResult.fps,
+		},
+		serveUrl: bundled,
+		codec: 'h264',
+		width: buildResult.width,
+		height: buildResult.height,
+		outputLocation: options.outPath,
+		inputProps: {
+			content: buildResult.content,
+		},
+		calcMetadata: false,
+		onProgress: ({progress}: {progress: number}) => {
+			if (progress % 10 === 0 || progress === 100) {
+				console.log(`  Progress: ${progress.toFixed(1)}%`);
+			}
+		},
+	};
+
+	try {
+		console.log('Rendering presentation...');
+		await renderMedia(renderOptions as any);
+		console.log(`Render complete! Output saved to: ${options.outPath}`);
+	} finally {
+		if (buildResult.tempFiles) {
+			for (const file of buildResult.tempFiles) {
+				try {
+					unlinkSync(file);
+				} catch (error) {
+					console.warn(`Failed to cleanup temp file ${file}:`, (error as Error).message);
+				}
+			}
+		}
+	}
+}
+
+export interface RenderPresentationContentOptions {
+	content: PresentationContent;
+	outPath: string;
+	fps?: number;
+	width?: number;
+	height?: number;
+	introDurationSeconds?: number;
+	outroDurationSeconds?: number;
+}
+
+export interface RenderPresentationResult {
+	outputLocation: string;
+	durationInFrames: number;
+}
+
+export async function renderPresentationContent({
+	content,
+	outPath,
+	fps: fpsOption,
+	width: widthOption,
+	height: heightOption,
+	introDurationSeconds = 4,
+	outroDurationSeconds = 5,
+}: RenderPresentationContentOptions): Promise<RenderPresentationResult> {
+	const fps = fpsOption ?? STYLE_TOKENS.canvas.fps;
+	const width = widthOption ?? STYLE_TOKENS.canvas.width;
+	const height = heightOption ?? STYLE_TOKENS.canvas.height;
+
+	const hasVoiceover = content.chapters.some(
+		(chapter) => typeof chapter.voiceoverSrc === 'string' && chapter.voiceoverSrc.trim() !== ''
+	);
+	const hasBackgroundMusic =
+		typeof content.backgroundMusic === 'string' && content.backgroundMusic.trim() !== '';
+
+	const introFrames = Math.floor(introDurationSeconds * fps);
+	const outroFrames = Math.floor(outroDurationSeconds * fps);
+	const slideFrames = content.chapters.reduce((sum, chapter) => {
+		const durationSeconds = Math.max(6, chapter.endSeconds - chapter.startSeconds);
+		return sum + Math.max(90, Math.floor(durationSeconds * fps));
+	}, 0);
+	const durationInFrames = introFrames + slideFrames + outroFrames;
+
+	const bundled = await bundle({
+		entryPoint: join(__dirname, '../src/index.tsx'),
+		webpackOverride: (config) => config,
+	});
+
+	const composition = await selectComposition({
+		serveUrl: bundled,
+		id: 'LessonVideo',
+		inputProps: {
+			content,
+		},
+	});
+
+	const renderOptions = {
+		composition: {
+			...composition,
+			width,
+			height,
+			fps,
+			durationInFrames,
+		},
+		serveUrl: bundled,
+		codec: 'h264',
+		audioCodec: 'aac' as const,
+		audioBitrate: '320k',
+		crf: 18,
+		pixelFormat: 'yuv420p' as const,
+		omitAudio: !hasVoiceover && !hasBackgroundMusic,
+		outputLocation: outPath,
+		inputProps: {
+			content,
+		},
+		calcMetadata: false,
+		onProgress: ({progress}: {progress: number}) => {
+			if (progress % 10 === 0 || progress === 100) {
+				console.log(`  Progress: ${progress.toFixed(1)}%`);
+			}
+		},
+	};
+
+	console.log('Rendering presentation from draft...');
+	try {
+		await renderMedia(renderOptions as any);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		const isTargetClosed =
+			message.includes('Target closed') || message.includes('Page.bringToFront');
+
+		if (isTargetClosed && existsSync(outPath)) {
+			console.warn(
+				'Remotion reported a Target closed error after rendering, but the output file exists. Continuing.'
+			);
+		} else {
+			throw error;
+		}
+	}
+	console.log(`Render complete! Output saved to: ${outPath}`);
+
+	return {
+		outputLocation: outPath,
+		durationInFrames,
+	};
 }
 
 /**

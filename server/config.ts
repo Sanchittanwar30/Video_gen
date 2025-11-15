@@ -26,7 +26,7 @@ export const config = {
 	},
 	ai: {
 		geminiApiKey: process.env.GEMINI_API_KEY || '',
-		geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+		geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
 	},
 	paths: {
 		outputDir: process.env.OUTPUT_DIR || './output',
@@ -34,6 +34,13 @@ export const config = {
 	},
 	websocket: {
 		port: parseInt(process.env.WEBSOCKET_PORT || '3001', 10),
+	},
+	colab: {
+		enabled: process.env.COLAB_ENABLED === 'true',
+		notebookUrl: process.env.COLAB_NOTEBOOK_URL,
+		apiToken: process.env.COLAB_API_TOKEN,
+		uploadEndpoint: process.env.COLAB_UPLOAD_ENDPOINT,
+		downloadEndpoint: process.env.COLAB_DOWNLOAD_ENDPOINT,
 	},
 };
 

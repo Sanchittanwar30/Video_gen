@@ -1,0 +1,48 @@
+<svg width="800" height="400" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="6" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#38bdf8"/>
+    </marker>
+  </defs>
+  <rect width="800" height="400" rx="24" fill="rgba(15,23,42,0.85)"/>
+  <text x="400" y="60" text-anchor="middle" font-size="28" fill="#e0f2fe" font-family="Inter, sans-serif" font-weight="600">
+    Sample Flowchart
+  </text>
+  <g transform="translate(80,150)">
+    <rect width="200" height="100" rx="16" fill="#38bdf8" opacity="0.85"/>
+    <text x="100" y="55" text-anchor="middle" font-size="18" fill="#0f172a" font-family="Inter, sans-serif">Start</text>
+  </g>
+  <line x1="280" y1="200" x2="360" y2="200" stroke="#38bdf8" stroke-width="4" marker-end="url(#arrow)"/>
+  <g transform="translate(360,150)">
+    <rect width="200" height="100" rx="16" fill="#38bdf8" opacity="0.85"/>
+    <text x="100" y="55" text-anchor="middle" font-size="18" fill="#0f172a" font-family="Inter, sans-serif">Process</text>
+  </g>
+  <line x1="560" y1="200" x2="640" y2="200" stroke="#38bdf8" stroke-width="4" marker-end="url(#arrow)"/>
+  <g transform="translate(640,150)">
+    <rect width="200" height="100" rx="16" fill="#38bdf8" opacity="0.85"/>
+    <text x="100" y="55" text-anchor="middle" font-size="18" fill="#0f172a" font-family="Inter, sans-serif">Result</text>
+  </g>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="560" viewBox="0 0 560 560">
+  <rect width="560" height="560" rx="36" ry="36" fill="rgba(15,23,42,0.1)" stroke="#38bdf8" stroke-width="4" stroke-dasharray="14 12"/>
+  <g stroke="#38bdf8" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="160" y="80" width="240" height="80" rx="18" ry="18" fill="rgba(56,189,248,0.12)"/>
+    <path d="M280 160 L280 220"/>
+    <rect x="120" y="220" width="160" height="80" rx="18" ry="18" fill="rgba(56,189,248,0.08)"/>
+    <rect x="320" y="220" width="160" height="80" rx="18" ry="18" fill="rgba(56,189,248,0.08)"/>
+    <path d="M200 300 L200 360"/>
+    <path d="M360 300 L360 360"/>
+    <rect x="160" y="360" width="80" height="80" rx="18" ry="18" fill="rgba(56,189,248,0.08)"/>
+    <rect x="320" y="360" width="80" height="80" rx="18" ry="18" fill="rgba(56,189,248,0.08)"/>
+    <path d="M200 440 L200 460 L360 460 L360 440"/>
+  </g>
+  <g fill="#e2e8f0" font-family="Inter, Arial, sans-serif" font-size="20" text-anchor="middle">
+    <text x="280" y="128">Start</text>
+    <text x="200" y="268">Analyze</text>
+    <text x="400" y="268">Summarize</text>
+    <text x="200" y="408">Table</text>
+    <text x="360" y="408">Slide</text>
+    <text x="280" y="498" fill="#94a3b8">Deliver Story</text>
+  </g>
+</svg>
+

@@ -3,7 +3,7 @@
     "target": "ES2022",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    "module": "CommonJS",
+    "module": "Node16",
     "moduleResolution": "node16",
     "strict": true,
     "esModuleInterop": true,
@@ -15,13 +15,14 @@
     "outDir": "./dist",
     "rootDir": "./",
     "allowSyntheticDefaultImports": true,
-    "types": ["node"]
+    "types": ["node"],
+    "typeRoots": ["./node_modules/@types", "./types"]
   },
-  "include": ["src/**/*", "render/**/*", "scripts/**/*"],
+  "include": ["src/**/*", "render/**/*", "scripts/**/*", "server/**/*", "examples/**/*", "types/**/*"],
   "exclude": ["node_modules", "dist"],
   "ts-node": {
     "compilerOptions": {
-      "module": "CommonJS"
+      "module": "Node16"
     }
   }
 }

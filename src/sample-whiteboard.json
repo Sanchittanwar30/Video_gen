@@ -1,0 +1,29 @@
+{
+  "titleText": "OOPs Concepts in C++",
+  "introCaption": "Visualise how classes connect to concrete objects.",
+  "outroCaption": "Keep exploring polymorphism and inheritance!",
+  "callToAction": "Build your own UML diagrams every day.",
+  "chapters": [
+    {
+      "id": "oop-class-object",
+      "title": "Classes and Objects",
+      "summary": "Classes define the blueprint; objects are live instances sharing that structure.",
+      "keyIdeas": [
+        "Classes describe attributes and behaviour",
+        "Objects inherit structure from the class",
+        "Methods operate on object state"
+      ],
+      "durationSeconds": 6,
+      "diagram": {
+        "type": "whiteboard",
+        "visualType": "whiteboard",
+        "imagePrompts": [
+          "Whiteboard sketch with a 'Class: Car' blueprint on the left and an arrow pointing to 'sportsCar' on the right, annotated with speed and color."
+        ]
+      }
+    }
+  ],
+  "theme": {
+    "name": "default"
+  }
+}

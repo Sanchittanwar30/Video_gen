@@ -1,18 +1,30 @@
+import 'dotenv/config';
+
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import path from 'path';
 import { config } from './config';
-import videoRoutes from './routes/video';
 import aiRoutes from './routes/ai';
+import generateVideoRoute from './routes/generateVideo';
+import colabRoutes from './routes/colab';
 import { VideoWebSocketServer } from './websocket';
 
 
 const app = express();
+
+
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/ai', aiRoutes);
+app.use('/api/colab', colabRoutes);
+app.use('/output', express.static(path.join(process.cwd(), 'output')));
+const assetsDirectory = process.env.ASSETS_DIR
+	? path.resolve(process.cwd(), process.env.ASSETS_DIR)
+	: path.join(process.cwd(), 'public', 'assets');
+app.use('/assets', express.static(assetsDirectory));
 
 // Health check endpoint
 app.get('/health', (req: Request, res: Response) => {
@@ -24,8 +36,7 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 // API routes
-app.use('/api/video', videoRoutes);
-app.use('/api/ai', aiRoutes);
+app.use('/api', generateVideoRoute);
 
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {
@@ -34,9 +45,13 @@ app.get('/', (req: Request, res: Response) => {
 		version: '1.0.0',
 		endpoints: {
 			health: '/health',
-			generateVideo: 'POST /api/video/generate',
-			getStatus: 'GET /api/video/status/:jobId',
-			cancelJob: 'DELETE /api/video/cancel/:jobId',
+			generateVideo: 'POST /api/generate-video',
+			colab: {
+				generate: 'POST /api/colab/generate',
+				status: 'GET /api/colab/status/:jobId',
+				download: 'GET /api/colab/download/:jobId',
+				pending: 'GET /api/colab/jobs/pending',
+			},
 		},
 	});
 });

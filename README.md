@@ -31,6 +31,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system documentation.
 - **Education-ready layouts**: Card-style text sections with progressive reveals for lessons or explainers
 - **Programmatic API**: Render videos from Node.js scripts
 - **Validation**: Automatic placeholder validation before rendering
+- **Google Colab Integration**: Offload heavy rendering to Colab's free GPU/CPU resources (see [colab/README.md](./colab/README.md))
 
 ## Project Structure
 
@@ -49,6 +50,10 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system documentation.
 ├── inputs/
 │   ├── promo-01-input.json          # Example input data
 │   └── education-sample.json        # Example lesson input data
+├── colab/
+│   ├── Video_Rendering_Colab.ipynb  # Google Colab notebook for rendering
+│   ├── upload_to_colab.py           # Script to prepare files for Colab
+│   └── colab-service.ts             # TypeScript service for Colab integration
 ├── scripts/
 │   └── preview.ts                   # Preview script for testing
 ├── package.json
@@ -126,6 +131,24 @@ Open Remotion Studio to preview compositions:
 ```bash
 npm run dev
 ```
+
+## AI Storyboard Pipeline
+
+The `/api/generate-video` endpoint orchestrates a lightweight Gemini → Gemini Image → Remotion workflow:
+
+1. **Structured JSON**: `POST /api/generate-video` with `{ "topic": "...", "description": "..." }`. The backend calls Gemini to produce an ordered list of frames (whiteboard diagrams, text slides, bullet slides, optional motion scenes).
+2. **Asset Generation**: For each `whiteboard_diagram` frame, Gemini Image generates a transparent PNG (saved under `/public/assets`). Motion scenes can optionally be generated with Veo 3.
+3. **Response**: The endpoint returns `{ jobId, title, frames[] }`, where every frame includes its resolved `asset` URL.
+4. **Rendering**: Use the demo Remotion component in `remotion/src/VideoFromAI.tsx` to render the storyboard into a final composition.
+
+Try it locally with:
+```bash
+curl -X POST http://localhost:3000/api/generate-video \
+  -H "Content-Type: application/json" \
+  -d '{"topic":"Quantum Entanglement","description":"Explain how observation collapses the shared state."}'
+```
+
+The frontend includes a demo form (see “AI Storyboard Demo”) that calls this endpoint and lists the generated frames and assets.
 
 ### Render a Video
 

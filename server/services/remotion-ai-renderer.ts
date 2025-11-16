@@ -19,20 +19,37 @@ export const renderStoryboardVideo = async (plan: AIVideoData): Promise<string> 
 				const updatedFrame = {...frame};
 
 				// Handle voiceover URLs
-				if (frame.voiceoverUrl && frame.voiceoverUrl.startsWith('/assets/')) {
-					// Convert /assets/voiceovers/... to assets/voiceovers/... (relative to public dir)
-					const publicRelativePath = frame.voiceoverUrl.replace(/^\//, '');
-					const absolutePath = path.join(process.cwd(), 'public', publicRelativePath);
-					
-					// Verify file exists
-					try {
-						await fs.access(absolutePath);
-						console.log(`[AI Render] Using voiceover: ${publicRelativePath} (relative to public dir)`);
-						updatedFrame.voiceoverUrl = publicRelativePath; // Use path relative to public directory
-					} catch (error) {
-						console.warn(`[AI Render] Voiceover file not found: ${absolutePath}, skipping audio for frame ${frame.id}`);
-						updatedFrame.voiceoverUrl = undefined;
+				if (frame.voiceoverUrl) {
+					if (frame.voiceoverUrl.startsWith('http')) {
+						// External URL - keep as is, no file check needed
+						updatedFrame.voiceoverUrl = frame.voiceoverUrl;
+						console.log(`[AI Render] Using external voiceover URL: ${frame.voiceoverUrl}`);
+					} else {
+						// Handle both /assets/... and assets/... paths
+						let publicRelativePath: string;
+						if (frame.voiceoverUrl.startsWith('/assets/')) {
+							publicRelativePath = frame.voiceoverUrl.replace(/^\//, '');
+						} else if (frame.voiceoverUrl.startsWith('assets/')) {
+							publicRelativePath = frame.voiceoverUrl;
+						} else {
+							// Assume it's already relative to public
+							publicRelativePath = frame.voiceoverUrl;
+						}
+						
+						const absolutePath = path.join(process.cwd(), 'public', publicRelativePath);
+						
+						// Verify file exists
+						try {
+							await fs.access(absolutePath);
+							console.log(`[AI Render] ✓ Voiceover found: ${publicRelativePath} for frame ${frame.id}`);
+							updatedFrame.voiceoverUrl = publicRelativePath; // Use path relative to public directory
+						} catch (error) {
+							console.warn(`[AI Render] ✗ Voiceover file not found: ${absolutePath}, skipping audio for frame ${frame.id}`);
+							updatedFrame.voiceoverUrl = undefined;
+						}
 					}
+				} else {
+					console.log(`[AI Render] No voiceover URL for frame ${frame.id}`);
 				}
 
 				// Pre-load SVG string if vectorized

@@ -288,6 +288,7 @@ export async function callGeminiImage(
           parameters: {
             sampleCount: IMAGE_SAMPLE_COUNT,
             mimeType: IMAGE_MIME_TYPE,
+            aspectRatio: "16:9", // Force 16:9 landscape aspect ratio
           },
         }
       : {

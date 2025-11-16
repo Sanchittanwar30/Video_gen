@@ -39,6 +39,7 @@ export interface VectorizedImage {
 	width: number;
 	height: number;
 	svgUrl: string;
+	svgString?: string; // SVG content for direct use (avoids fetch issues)
 }
 
 /**
@@ -64,51 +65,215 @@ export const vectorizeImage = async (imagePath: string, timeoutMs: number = 1500
 				throw new Error('Could not read image dimensions');
 			}
 
-			// Convert to grayscale and resize for image-focused vectorization
-			// Lower resolution = less detail capture, favors larger shapes over text
-			const maxDimension = 800; // Slightly lower resolution to reduce text detail capture
+			// Convert to grayscale and resize with a WIDE target to better fill 16:9 frames
+			// Target a wider working size to reduce letterboxing and make figures larger
+			const targetCanvasWidth = 1920;
+			const targetCanvasHeight = 1080;
+
+			// Detect if image is square or close to square (aspect ratio between 0.9 and 1.1)
+			const aspectRatio = metadata.width! / metadata.height!;
+			const isSquare = aspectRatio >= 0.9 && aspectRatio <= 1.1;
 			
-			// Resize to max dimension while maintaining aspect ratio
-			const scale = Math.min(maxDimension / metadata.width!, maxDimension / metadata.height!);
-			const targetWidth = Math.round(metadata.width! * scale);
-			const targetHeight = Math.round(metadata.height! * scale);
+			let targetWidth: number;
+			let targetHeight: number;
 			
+			if (isSquare) {
+				// For square images: stretch to fill width (1920x1080), maintaining center crop
+				// This ensures rectangular output instead of square
+				console.log(`[Vectorizer] Detected square image (${metadata.width}x${metadata.height}), stretching to 1920x1080`);
+				targetWidth = targetCanvasWidth;
+				targetHeight = targetCanvasHeight;
+			} else {
+				// For non-square images: fit inside while preserving aspect ratio
+				const fitScale = Math.min(
+					targetCanvasWidth / metadata.width!,
+					targetCanvasHeight / metadata.height!,
+					Infinity
+				);
+				const scale = Math.min(Math.max(fitScale, 1), 2); // allow up to 2x enlargement max
+				targetWidth = Math.max(1, Math.round(metadata.width! * scale));
+				targetHeight = Math.max(1, Math.round(metadata.height! * scale));
+			}
+			
+			// Resize: for square images use 'cover' to fill frame, for others use 'inside' to preserve aspect
+			// Use white background to avoid creating background rectangles in SVG
 			const processedBuffer = await sharp(imageBuffer)
-				.resize(targetWidth, targetHeight, {
-					fit: 'inside',
-					withoutEnlargement: true,
-					kernel: 'lanczos3', // High-quality resampling
+				.resize(targetWidth, targetHeight, { 
+					fit: isSquare ? 'cover' : 'inside', 
+					withoutEnlargement: !isSquare, // Allow enlargement for square images to fill width
+					position: 'center', // Center crop for square images
+					kernel: 'lanczos3' 
+				})
+				.extend({
+					top: Math.max(0, Math.floor((targetCanvasHeight - targetHeight) / 2)),
+					bottom: Math.max(0, Math.ceil((targetCanvasHeight - targetHeight) / 2)),
+					left: Math.max(0, Math.floor((targetCanvasWidth - targetWidth) / 2)),
+					right: Math.max(0, Math.ceil((targetCanvasWidth - targetWidth) / 2)),
+					background: { r: 255, g: 255, b: 255, alpha: 1 }, // white background (will be filtered out)
 				})
 				.greyscale()
-				.normalize({lower: 20, upper: 80}) // Wide contrast range - strongly favors larger figures/diagrams, minimizes text detail
+				// Gentle enhancement to preserve meaning; avoid harsh binarization
+				.sharpen(0.6)
+				.normalize()
 				.png()
 				.toBuffer();
 			
-			console.log(`[Vectorizer] Resized from ${metadata.width}x${metadata.height} to ${targetWidth}x${targetHeight}`);
+			console.log(`[Vectorizer] Resized from ${metadata.width}x${metadata.height} to ${targetWidth}x${targetHeight} on ${targetCanvasWidth}x${targetCanvasHeight} canvas`);
 
-			// Trace the image to SVG using potrace with settings optimized for images over text
-			// Aggressively prioritize figures/diagrams and minimize text detail
+			// Trace the image to SVG using potrace with settings tuned for smoother, more accurate lines
 			const svgString = await trace(processedBuffer, {
-				threshold: 160, // Higher threshold = less detail, strongly favors larger shapes/figures over text
-				optCurve: true, // Enable curve optimization for smoother paths
-				optTolerance: 0.4, // Curve optimization tolerance
-				turdSize: 6, // Filter out many more small shapes (strongly reduces text detail, very figure-focused)
-				turnPolicy: 'minority' as string, // Use string literal instead of enum
-				alphamax: 1.0,
+				threshold: 128, // Balanced detail
+				optCurve: true,
+				optTolerance: 0.2, // tighter curve fit
+				turdSize: 2, // keep smaller meaningful strokes
+				turnPolicy: 'majority' as string,
+				alphamax: 0.8,
+				blackOnWhite: true,
 			});
 
-			// Extract paths from SVG
-			const pathMatch = (svgString as string).match(/<path[^>]*d="([^"]*)"[^>]*>/g);
-			if (!pathMatch || pathMatch.length === 0) {
-				throw new Error('No paths found in vectorized image');
+			// Filter out unwanted elements using regex (no DOM parser needed)
+			// Remove only full-frame background <rect> elements (keep useful rectangles in diagrams)
+			let cleanedSvg = svgString as string;
+			
+			// Find and selectively remove rect elements that are full-frame backgrounds
+			const rectMatches = cleanedSvg.match(/<rect[^>]*>/gi);
+			if (rectMatches) {
+				for (const rectTag of rectMatches) {
+					// Extract width, height, x, y attributes
+					const widthMatch = rectTag.match(/width\s*=\s*["']([^"']+)["']/i) || rectTag.match(/width\s*:\s*([^;]+)/i);
+					const heightMatch = rectTag.match(/height\s*=\s*["']([^"']+)["']/i) || rectTag.match(/height\s*:\s*([^;]+)/i);
+					const xMatch = rectTag.match(/x\s*=\s*["']([^"']+)["']/i) || rectTag.match(/x\s*:\s*([^;]+)/i);
+					const yMatch = rectTag.match(/y\s*=\s*["']([^"']+)["']/i) || rectTag.match(/y\s*:\s*([^;]+)/i);
+					
+					const width = widthMatch ? parseFloat(widthMatch[1]) : targetCanvasWidth;
+					const height = heightMatch ? parseFloat(heightMatch[1]) : targetCanvasHeight;
+					const x = xMatch ? parseFloat(xMatch[1]) : 0;
+					const y = yMatch ? parseFloat(yMatch[1]) : 0;
+					
+					// Only remove if it's a full-frame background (covers >95% of canvas and starts near origin)
+					const isFullFrame = width >= targetCanvasWidth * 0.95 && 
+					                   height >= targetCanvasHeight * 0.95 &&
+					                   Math.abs(x) < targetCanvasWidth * 0.05 &&
+					                   Math.abs(y) < targetCanvasHeight * 0.05;
+					
+					if (isFullFrame) {
+						// Remove this full-frame background rect
+						cleanedSvg = cleanedSvg.replace(new RegExp(rectTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[^>]*>', 'gi'), '');
+						cleanedSvg = cleanedSvg.replace(new RegExp(rectTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*/>', 'gi'), '');
+					}
+					// Otherwise keep it - it's a useful rectangle in the diagram
+				}
 			}
-
-			// Extract all path data and split by Move commands for smaller segments
-			const paths: string[] = [];
+			
+			// Remove all <foreignObject> elements (these are typically not useful for diagrams)
+			cleanedSvg = cleanedSvg.replace(/<foreignObject[^>]*>[\s\S]*?<\/foreignObject>/gi, '');
+			
+			// Remove elements with display:none or visibility:hidden (invisible bounding boxes)
+			cleanedSvg = cleanedSvg.replace(/<[^>]*(?:display\s*:\s*none|visibility\s*:\s*hidden)[^>]*>[\s\S]*?<\/[^>]+>/gi, '');
+			cleanedSvg = cleanedSvg.replace(/<[^>]*(?:display\s*=\s*["']none["']|visibility\s*=\s*["']hidden["'])[^>]*\/>/gi, '');
+			
+			// Extract <path> elements and also convert useful <rect> elements to paths
+			const pathMatch = cleanedSvg.match(/<path[^>]*d="([^"]*)"[^>]*>/g) || [];
+			
+			// Convert useful rect elements to path elements so they can be animated
+			const usefulRects = cleanedSvg.match(/<rect[^>]*>/gi) || [];
+			for (const rectTag of usefulRects) {
+				const widthMatch = rectTag.match(/width\s*=\s*["']([^"']+)["']/i) || rectTag.match(/width\s*:\s*([^;]+)/i);
+				const heightMatch = rectTag.match(/height\s*=\s*["']([^"']+)["']/i) || rectTag.match(/height\s*:\s*([^;]+)/i);
+				const xMatch = rectTag.match(/x\s*=\s*["']([^"']+)["']/i) || rectTag.match(/x\s*:\s*([^;]+)/i);
+				const yMatch = rectTag.match(/y\s*=\s*["']([^"']+)["']/i) || rectTag.match(/y\s*:\s*([^;]+)/i);
+				
+				const width = widthMatch ? parseFloat(widthMatch[1]) : 0;
+				const height = heightMatch ? parseFloat(heightMatch[1]) : 0;
+				const x = xMatch ? parseFloat(xMatch[1]) : 0;
+				const y = yMatch ? parseFloat(yMatch[1]) : 0;
+				
+				// Convert rect to path (rectangle outline)
+				if (width > 0 && height > 0) {
+					const pathD = `M ${x} ${y} L ${x + width} ${y} L ${x + width} ${y + height} L ${x} ${y + height} Z`;
+					pathMatch.push(`<path d="${pathD}"/>`);
+				}
+			}
+			if (!pathMatch || pathMatch.length === 0) {
+				throw new Error('No paths found in vectorized image after filtering');
+			}
+			
+			// Filter out background rectangle paths and border boxes (full frame coverage or border outlines)
+			const filteredPaths: string[] = [];
 			for (const pathTag of pathMatch) {
 				const dMatch = pathTag.match(/d="([^"]*)"/);
 				if (dMatch && dMatch[1]) {
 					const d = dMatch[1];
+					// Check if this is a background rectangle path or border box
+					const nums = d.match(/-?\d+(\.\d+)?/g)?.map(Number).filter(n => !isNaN(n)) || [];
+					if (nums.length >= 4) {
+						const coords = [];
+						for (let i = 0; i < nums.length; i += 2) {
+							if (i + 1 < nums.length) {
+								coords.push({x: nums[i], y: nums[i + 1]});
+							}
+						}
+						if (coords.length >= 2) {
+							const minX = Math.min(...coords.map(c => c.x));
+							const maxX = Math.max(...coords.map(c => c.x));
+							const minY = Math.min(...coords.map(c => c.y));
+							const maxY = Math.max(...coords.map(c => c.y));
+							const width = maxX - minX;
+							const height = maxY - minY;
+							
+							// Check if it's near the edges (border detection)
+							const nearLeft = minX <= targetCanvasWidth * 0.02;
+							const nearRight = (targetCanvasWidth - maxX) <= targetCanvasWidth * 0.02;
+							const nearTop = minY <= targetCanvasHeight * 0.02;
+							const nearBottom = (targetCanvasHeight - maxY) <= targetCanvasHeight * 0.02;
+							
+							// Skip if it's a full-frame background rectangle (covers >85% of canvas - more aggressive)
+							if (width >= targetCanvasWidth * 0.85 && height >= targetCanvasHeight * 0.85) {
+								console.log(`[Vectorizer] Filtered out full-frame background: ${width}x${height}`);
+								continue;
+							}
+							
+							// Skip if it's a border box (large rectangle near edges - more aggressive)
+							if (width >= targetCanvasWidth * 0.80 && height >= targetCanvasHeight * 0.80 && 
+							    (nearLeft || nearRight) && (nearTop || nearBottom)) {
+								console.log(`[Vectorizer] Filtered out border box: ${width}x${height} at edges`);
+								continue;
+							}
+							
+							// Skip tall thin side bars (more aggressive - thinner threshold)
+							if (width <= targetCanvasWidth * 0.05 && height >= targetCanvasHeight * 0.5 && (nearLeft || nearRight)) {
+								console.log(`[Vectorizer] Filtered out side bar: ${width}x${height}`);
+								continue;
+							}
+							
+							// Skip wide thin top/bottom bars (more aggressive - thinner threshold)
+							if (height <= targetCanvasHeight * 0.05 && width >= targetCanvasWidth * 0.5 && (nearTop || nearBottom)) {
+								console.log(`[Vectorizer] Filtered out top/bottom bar: ${width}x${height}`);
+								continue;
+							}
+							
+							// Skip any rectangle that forms a bounding box (exact canvas dimensions or very close)
+							if (Math.abs(width - targetCanvasWidth) < 10 && Math.abs(height - targetCanvasHeight) < 10) {
+								console.log(`[Vectorizer] Filtered out bounding box rectangle: ${width}x${height}`);
+								continue;
+							}
+						}
+					}
+					filteredPaths.push(pathTag);
+				}
+			}
+			
+			if (filteredPaths.length === 0) {
+				throw new Error('No valid paths found after filtering background shapes');
+			}
+
+			// Extract all path data and split by Move commands for smaller segments
+			const paths: string[] = [];
+			for (const pathTag of filteredPaths) {
+				const dMatch = pathTag.match(/d="([^"]*)"/);
+				if (dMatch && dMatch[1]) {
+					const d = dMatch[1];
+					
 					// Split d into segments at Move commands to enable strict top-to-bottom drawing
 					const segments: string[] = [];
 					let current = '';
@@ -136,10 +301,9 @@ export const vectorizeImage = async (imagePath: string, timeoutMs: number = 1500
 
 			console.log(`[Vectorizer] Extracted ${paths.length} paths from image`);
 
-			// Get final dimensions
-			const finalMetadata = await sharp(processedBuffer).metadata();
-			const width = finalMetadata.width || metadata.width!;
-			const height = finalMetadata.height || metadata.height!;
+			// Use exact dimensions 1920x1080 as requested (no padding, no extra space)
+			const width = 1920;
+			const height = 1080;
 
 			// Save SVG file for reference
 			const assetsDir = await ensureAssetsDir();
@@ -147,6 +311,7 @@ export const vectorizeImage = async (imagePath: string, timeoutMs: number = 1500
 			const svgPath = path.join(assetsDir, svgFilename);
 			
 			// Sort paths top-to-bottom, then left-to-right using first Move coordinates
+			// Use strict sorting with small tolerance for proper top-to-bottom order
 			type Seg = { d: string; x: number; y: number };
 			const segs: Seg[] = paths.map((d) => {
 				const m = d.match(/^[Mm]\s*([-\d.]+)[,\s]+([-\d.]+)/);
@@ -156,45 +321,19 @@ export const vectorizeImage = async (imagePath: string, timeoutMs: number = 1500
 			});
 			segs.sort((a, b) => {
 				const yDiff = a.y - b.y;
-				if (Math.abs(yDiff) > 0.01) return yDiff;
+				// Use strict tolerance (2px) for top-to-bottom ordering
+				if (Math.abs(yDiff) > 2) return yDiff;
+				// If same Y (within 2px), sort left-to-right
 				return a.x - b.x;
 			});
 
-			// Create optimized SVG - only fill VERY SMALL closed paths (character holes like 'o', 'a')
-			// NOT large letter outlines (like 'D', 'A') - keep those outline-only for readability
+			// Create optimized SVG - STROKES ONLY (no fills, no rect, no foreignObject, no background)
+			// Use exact viewBox "0 0 1920 1080" as requested, ensure all coordinates are within frame
 			const optimizedSvg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-	<g fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd">
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
+	<g fill="none" stroke="#000000" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
 		${segs.map((s, i) => {
-			// Check if path is closed (ends with Z or z)
-			const isClosed = /[Zz]\s*$/.test(s.d.trim());
-			if (!isClosed) {
-				return `<path d="${s.d}" fill="none" id="path-${i}" vector-effect="non-scaling-stroke"/>`;
-			}
-			
-			// Calculate bounding box to determine if it's a small hole or large shape
-			const coords = s.d.match(/[-\d.]+/g)?.map(Number).filter(n => !isNaN(n)) || [];
-			if (coords.length < 4) {
-				return `<path d="${s.d}" fill="none" id="path-${i}" vector-effect="non-scaling-stroke"/>`;
-			}
-			
-			const xs = coords.filter((_, idx) => idx % 2 === 0);
-			const ys = coords.filter((_, idx) => idx % 2 === 1);
-			const bboxWidth = Math.max(...xs) - Math.min(...xs);
-			const bboxHeight = Math.max(...ys) - Math.min(...ys);
-			const area = bboxWidth * bboxHeight;
-			
-			// Only fill SMALL closed paths (< 2% of SVG area) - these are character interior holes
-			// Large closed paths (letter outlines like 'D', 'A') stay outline-only
-			// Increased thresholds to catch more character holes for readability
-			const maxArea = (width * height) * 0.02;  // 2% of area (was 1%)
-			const maxWidth = width * 0.06;  // 6% of width (was 4%)
-			const maxHeight = height * 0.06; // 6% of height (was 4%)
-			
-			const isSmallHole = area < maxArea && bboxWidth < maxWidth && bboxHeight < maxHeight;
-			const fillAttr = isSmallHole ? 'fill="#ffffff"' : 'fill="none"';
-			
-			return `<path d="${s.d}" ${fillAttr} id="path-${i}" vector-effect="non-scaling-stroke"/>`;
+			return `<path d="${s.d}" fill="none" id="path-${i}" vector-effect="non-scaling-stroke"/>`;
 		}).join('\n\t\t')}
 	</g>
 </svg>`;
@@ -204,6 +343,9 @@ export const vectorizeImage = async (imagePath: string, timeoutMs: number = 1500
 			
 			// Use relative URL - Remotion will resolve it correctly
 			const svgUrl = relativeUrl;
+			
+			// Return SVG string content for direct use (avoids fetch issues)
+			const finalSvgString = optimizedSvg;
 
 			console.log(`[Vectorizer] Vectorization complete: ${paths.length} paths, saved to ${svgUrl}`);
 
@@ -212,6 +354,7 @@ export const vectorizeImage = async (imagePath: string, timeoutMs: number = 1500
 				width,
 				height,
 				svgUrl,
+				svgString: finalSvgString, // Include SVG content for direct use
 			};
 		})();
 

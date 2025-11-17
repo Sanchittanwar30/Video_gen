@@ -25,18 +25,20 @@ export interface StructuredVideoPlan {
 
 const PROMPT_TEMPLATE = `You are an AI that outputs STRICT valid JSON for educational whiteboard-style videos.
 
-IMPORTANT: Generate EXACTLY 2 whiteboard diagram frames. Do NOT include text_slide or bullet_slide frames.
+IMPORTANT: Generate an appropriate number of whiteboard diagram frames based on the topic complexity and content. Do NOT include text_slide or bullet_slide frames.
 Only use: "whiteboard_diagram" frame type.
 
 CRITICAL REQUIREMENTS:
-- Generate EXACTLY 2 whiteboard diagram frames (no more, no less)
+- Generate up to 5 whiteboard diagram frames maximum (flexible: 1-5 frames based on topic complexity)
 - Each frame must be VISUAL and FIGURE-FOCUSED with minimal text
 - First frame: Introduction/overview using diagrams and figures
-- Second frame: Detailed explanation using visual diagrams and shapes
+- Subsequent frames: Progressively detailed explanations using visual diagrams and shapes
 - Focus on diagrams, shapes, figures, flowcharts, and visual elements
 - MINIMAL TEXT - only essential labels if needed (less than 10% text)
 - Prioritize geometric shapes, visual connections, and diagrammatic representations
 - Make each sketch illustration-heavy and text-light
+- Break down complex topics into multiple frames if needed to ensure clarity
+- Generate the appropriate number of frames for the topic (simple topics may need fewer frames, complex topics may need more)
 
 Given topic + description, output:
 {
@@ -45,24 +47,27 @@ Given topic + description, output:
     {
       "id": "frame_1",
       "type": "whiteboard_diagram",
-      "prompt_for_image": "VISUAL description for first whiteboard diagram. Focus on: diagrams, shapes, figures, flowcharts, visual elements. MINIMAL TEXT - only essential labels if needed. Emphasize geometric shapes, visual connections, and diagrammatic representations. Keep text less than 10% of the image. This is the introduction/overview frame.",
+      "prompt_for_image": "A clear educational whiteboard diagram explaining [specific concept from topic] - introduction/overview. Use geometric shapes, flowcharts, and visual connections to show the main concept. Include essential labels (less than 10% text). Make it informative and directly related to the topic.",
       "heading": "optional string for context",
       "duration": 4
     },
     {
       "id": "frame_2",
       "type": "whiteboard_diagram",
-      "prompt_for_image": "VISUAL description for second whiteboard diagram. Focus on: diagrams, shapes, figures, flowcharts, visual elements. MINIMAL TEXT - only essential labels if needed. Emphasize geometric shapes, visual connections, and diagrammatic representations. Keep text less than 10% of the image. This is the detailed explanation frame.",
+      "prompt_for_image": "A clear educational whiteboard diagram explaining [specific aspect of topic] in detail. Use geometric shapes, flowcharts, and visual connections to show relationships and processes. Include essential labels (less than 10% text). Make it informative and directly related to the topic.",
       "heading": "optional string for context",
       "duration": 4
     }
+    // Maximum 5 frames total - generate 1-5 frames based on topic complexity
   ]
 }
 
 EXAMPLE of good prompt_for_image:
-"A visual whiteboard diagram showing [concept] using [geometric shapes/diagrams/flowcharts]. Include: [visual elements like circles, boxes, arrows connecting shapes]. MINIMAL TEXT - only essential labels if needed (less than 10% text). Focus on visual storytelling through diagrams and figures rather than text."
+"A clear educational whiteboard diagram explaining [specific concept from topic] using geometric shapes, flowcharts, and visual connections. Show [specific relationships, processes, or structures relevant to the topic]. Include essential labels (less than 10% text) that help explain the concept. Make it informative and directly related to the topic - avoid abstract or decorative elements."
 
-Focus on visual storytelling through DIAGRAMS, FIGURES, and SHAPES. Generate EXACTLY 2 figure-focused whiteboard diagram frames with minimal text that explain the topic visually.
+IMPORTANT: Each prompt_for_image must be specific to the topic and create a meaningful educational diagram. Avoid generic descriptions. Focus on creating diagrams that clearly explain the concept being taught.
+
+Focus on visual storytelling through DIAGRAMS, FIGURES, and SHAPES. Generate 1-5 figure-focused whiteboard diagram frames with minimal text that explain the topic visually. Generate the appropriate number of frames based on topic complexity - simple topics may need 1-2 frames, complex topics may need up to 5 frames.
 The JSON must be valid. No prose or markdown.`;
 
 const validatePlan = (plan: StructuredVideoPlan): StructuredVideoPlan => {
@@ -114,20 +119,31 @@ const validatePlan = (plan: StructuredVideoPlan): StructuredVideoPlan => {
 		};
 	});
 
-	// Validate frame count for whiteboard diagrams (should be exactly 2)
+	// Validate frame count for whiteboard diagrams (should be at least 1, maximum 5)
 	const whiteboardFrames = validatedFrames.filter(f => f.type === 'whiteboard_diagram');
-	if (whiteboardFrames.length !== 2) {
-		console.warn(`[Structured Plan] Generated ${whiteboardFrames.length} whiteboard diagram frames. Expected exactly 2.`);
-		// If we have more than 2, take only the first 2
-		if (whiteboardFrames.length > 2) {
-			const otherFrames = validatedFrames.filter(f => f.type !== 'whiteboard_diagram');
-			const firstTwoWhiteboard = whiteboardFrames.slice(0, 2);
-			return {
-				title: plan.title.trim(),
-				frames: [...firstTwoWhiteboard, ...otherFrames],
-			};
-		}
+	if (whiteboardFrames.length === 0) {
+		console.warn(`[Structured Plan] No whiteboard diagram frames generated. At least one frame is required.`);
+		throw new Error('Structured plan must include at least one whiteboard_diagram frame');
 	}
+	
+	// Limit to maximum 5 whiteboard diagram frames
+	if (whiteboardFrames.length > 5) {
+		console.warn(`[Structured Plan] Generated ${whiteboardFrames.length} whiteboard frames, limiting to 5 frames maximum.`);
+		// Keep only first 5 whiteboard frames, remove the rest
+		let whiteboardCount = 0;
+		const limitedFrames = validatedFrames.filter(frame => {
+			if (frame.type === 'whiteboard_diagram') {
+				whiteboardCount++;
+				return whiteboardCount <= 5;
+			}
+			return true; // Keep non-whiteboard frames
+		});
+		validatedFrames.length = 0;
+		validatedFrames.push(...limitedFrames);
+	}
+	
+	const finalWhiteboardFrames = validatedFrames.filter(f => f.type === 'whiteboard_diagram');
+	console.log(`[Structured Plan] Generated ${finalWhiteboardFrames.length} whiteboard diagram frame(s) (limited to 5 maximum).`);
 
 	return {
 		title: plan.title.trim(),
@@ -146,7 +162,7 @@ export const generateStructuredJSON = async (
 Topic: ${topic}
 ${description ? `Description: ${description}` : ''}
 
-CRITICAL: Generate EXACTLY 2 figure-focused whiteboard diagram frames. Each prompt_for_image must emphasize diagrams, shapes, figures, and visual elements. MINIMAL TEXT - only essential labels if needed (less than 10% text). Focus on geometric shapes, flowcharts, and visual connections.`.trim()
+CRITICAL: Generate 1-5 figure-focused whiteboard diagram frames based on topic complexity. Each prompt_for_image must emphasize diagrams, shapes, figures, and visual elements. MINIMAL TEXT - only essential labels if needed (less than 10% text). Focus on geometric shapes, flowcharts, and visual connections. Generate the appropriate number of frames for the topic - simple topics may need fewer frames, complex topics may need up to 5 frames.`.trim()
 		);
 		const plan = JSON.parse(response) as StructuredVideoPlan;
 		return validatePlan(plan);
@@ -157,7 +173,7 @@ CRITICAL: Generate EXACTLY 2 figure-focused whiteboard diagram frames. Each prom
 Topic: ${topic}
 ${description ? `Description: ${description}` : ''}
 
-CRITICAL: Generate EXACTLY 2 figure-focused whiteboard diagram frames. Each prompt_for_image must emphasize diagrams, shapes, figures, and visual elements. MINIMAL TEXT - only essential labels if needed (less than 10% text). Focus on geometric shapes, flowcharts, and visual connections.
+CRITICAL: Generate 1-5 figure-focused whiteboard diagram frames based on topic complexity. Each prompt_for_image must emphasize diagrams, shapes, figures, and visual elements. MINIMAL TEXT - only essential labels if needed (less than 10% text). Focus on geometric shapes, flowcharts, and visual connections. Generate the appropriate number of frames for the topic - simple topics may need fewer frames, complex topics may need up to 5 frames.
 
 IMPORTANT: Respond with ONLY valid JSON. No commentary.`.trim();
 

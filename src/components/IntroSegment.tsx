@@ -89,7 +89,7 @@ export const IntroSegment: React.FC<IntroSegmentProps> = ({
 					</p>
 				) : null}
 			</div>
-			{backgroundMusic ? <Audio src={backgroundMusic} volume={0.18} /> : null}
+			{backgroundMusic ? <Audio src={backgroundMusic} volume={0.05} /> : null}
 		</div>
 	);
 };

@@ -194,7 +194,7 @@ export const AnimatedSlide: React.FC<AnimatedSlideProps> = ({
 				</section>
 			</div>
 			{chapter.voiceoverSrc ? <Audio src={chapter.voiceoverSrc} /> : null}
-			{backgroundMusic ? <Audio src={backgroundMusic} volume={0.15} /> : null}
+			{backgroundMusic ? <Audio src={backgroundMusic} volume={0.05} /> : null}
 		</AbsoluteFill>
 	);
 };

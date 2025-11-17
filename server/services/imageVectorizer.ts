@@ -70,38 +70,49 @@ export const vectorizeImage = async (imagePath: string, timeoutMs: number = 1500
 			const targetCanvasWidth = 1920;
 			const targetCanvasHeight = 1080;
 
-			// Detect if image is square or close to square (aspect ratio between 0.9 and 1.1)
+			// Calculate aspect ratio and determine best fit strategy
 			const aspectRatio = metadata.width! / metadata.height!;
+			const targetAspectRatio = targetCanvasWidth / targetCanvasHeight; // 16:9 = 1.777...
 			const isSquare = aspectRatio >= 0.9 && aspectRatio <= 1.1;
+			const isCloseTo16_9 = Math.abs(aspectRatio - targetAspectRatio) < 0.1; // Within 10% of 16:9
 			
 			let targetWidth: number;
 			let targetHeight: number;
 			
-			if (isSquare) {
-				// For square images: stretch to fill width (1920x1080), maintaining center crop
-				// This ensures rectangular output instead of square
+			if (isCloseTo16_9) {
+				// Image is already close to 16:9 - scale to fit exactly
+				const scale = Math.min(
+					targetCanvasWidth / metadata.width!,
+					targetCanvasHeight / metadata.height!
+				);
+				targetWidth = Math.round(metadata.width! * scale);
+				targetHeight = Math.round(metadata.height! * scale);
+				console.log(`[Vectorizer] Image is close to 16:9 (${metadata.width}x${metadata.height}, ratio=${aspectRatio.toFixed(2)}), scaling to ${targetWidth}x${targetHeight}`);
+			} else if (isSquare) {
+				// For square images: stretch to fill 16:9 (cover mode)
 				console.log(`[Vectorizer] Detected square image (${metadata.width}x${metadata.height}), stretching to 1920x1080`);
 				targetWidth = targetCanvasWidth;
 				targetHeight = targetCanvasHeight;
 			} else {
-				// For non-square images: fit inside while preserving aspect ratio
+				// For other aspect ratios: fit inside 16:9 while preserving aspect ratio
 				const fitScale = Math.min(
 					targetCanvasWidth / metadata.width!,
-					targetCanvasHeight / metadata.height!,
-					Infinity
+					targetCanvasHeight / metadata.height!
 				);
 				const scale = Math.min(Math.max(fitScale, 1), 2); // allow up to 2x enlargement max
 				targetWidth = Math.max(1, Math.round(metadata.width! * scale));
 				targetHeight = Math.max(1, Math.round(metadata.height! * scale));
+				console.log(`[Vectorizer] Image aspect ratio ${aspectRatio.toFixed(2)} (${metadata.width}x${metadata.height}), fitting to ${targetWidth}x${targetHeight} on 1920x1080 canvas`);
 			}
 			
-			// Resize: for square images use 'cover' to fill frame, for others use 'inside' to preserve aspect
+			// Resize: for square/close-to-16:9 use 'cover' to fill frame, for others use 'inside' to preserve aspect
 			// Use white background to avoid creating background rectangles in SVG
+			// MINIMAL processing to preserve original image appearance
 			const processedBuffer = await sharp(imageBuffer)
 				.resize(targetWidth, targetHeight, { 
-					fit: isSquare ? 'cover' : 'inside', 
-					withoutEnlargement: !isSquare, // Allow enlargement for square images to fill width
-					position: 'center', // Center crop for square images
+					fit: (isSquare || isCloseTo16_9) ? 'cover' : 'inside', 
+					withoutEnlargement: !(isSquare || isCloseTo16_9), // Allow enlargement for square/16:9 images
+					position: 'center', // Center crop
 					kernel: 'lanczos3' 
 				})
 				.extend({
@@ -112,22 +123,22 @@ export const vectorizeImage = async (imagePath: string, timeoutMs: number = 1500
 					background: { r: 255, g: 255, b: 255, alpha: 1 }, // white background (will be filtered out)
 				})
 				.greyscale()
-				// Gentle enhancement to preserve meaning; avoid harsh binarization
-				.sharpen(0.6)
-				.normalize()
+				// Minimal processing - only slight contrast enhancement to help potrace
+				.normalize() // Normalize contrast (helps potrace distinguish shapes)
 				.png()
 				.toBuffer();
 			
 			console.log(`[Vectorizer] Resized from ${metadata.width}x${metadata.height} to ${targetWidth}x${targetHeight} on ${targetCanvasWidth}x${targetCanvasHeight} canvas`);
 
-			// Trace the image to SVG using potrace with settings tuned for smoother, more accurate lines
+			// Trace the image to SVG using potrace with settings optimized for ACCURACY
+			// Goal: Match the original image as closely as possible
 			const svgString = await trace(processedBuffer, {
-				threshold: 128, // Balanced detail
+				threshold: 128, // Standard threshold - balances detail and accuracy
 				optCurve: true,
-				optTolerance: 0.2, // tighter curve fit
-				turdSize: 2, // keep smaller meaningful strokes
+				optTolerance: 0.4, // Tighter curve fit for more accurate representation
+				turdSize: 0, // Keep ALL strokes - no filtering of small details
 				turnPolicy: 'majority' as string,
-				alphamax: 0.8,
+				alphamax: 1.0, // Maximum alpha to capture all details
 				blackOnWhite: true,
 			});
 
@@ -198,13 +209,16 @@ export const vectorizeImage = async (imagePath: string, timeoutMs: number = 1500
 				throw new Error('No paths found in vectorized image after filtering');
 			}
 			
-			// Filter out background rectangle paths and border boxes (full frame coverage or border outlines)
+			// MINIMAL filtering - only remove EXACT full-frame white backgrounds
+			// Keep ALL other paths to preserve image accuracy
 			const filteredPaths: string[] = [];
+			const pathsToFilter: string[] = [];
+			
 			for (const pathTag of pathMatch) {
 				const dMatch = pathTag.match(/d="([^"]*)"/);
 				if (dMatch && dMatch[1]) {
 					const d = dMatch[1];
-					// Check if this is a background rectangle path or border box
+					// Check if this is an EXACT full-frame background rectangle
 					const nums = d.match(/-?\d+(\.\d+)?/g)?.map(Number).filter(n => !isNaN(n)) || [];
 					if (nums.length >= 4) {
 						const coords = [];
@@ -221,51 +235,34 @@ export const vectorizeImage = async (imagePath: string, timeoutMs: number = 1500
 							const width = maxX - minX;
 							const height = maxY - minY;
 							
-							// Check if it's near the edges (border detection)
-							const nearLeft = minX <= targetCanvasWidth * 0.02;
-							const nearRight = (targetCanvasWidth - maxX) <= targetCanvasWidth * 0.02;
-							const nearTop = minY <= targetCanvasHeight * 0.02;
-							const nearBottom = (targetCanvasHeight - maxY) <= targetCanvasHeight * 0.02;
+							// ONLY filter if it's EXACTLY the canvas size (within 1px) AND at origin
+							// This is the most conservative filter - only exact white background rectangles
+							const isExactCanvasBackground = Math.abs(width - targetCanvasWidth) < 1 && 
+							                                Math.abs(height - targetCanvasHeight) < 1 &&
+							                                Math.abs(minX) < 1 &&
+							                                Math.abs(minY) < 1;
 							
-							// Skip if it's a full-frame background rectangle (covers >85% of canvas - more aggressive)
-							if (width >= targetCanvasWidth * 0.85 && height >= targetCanvasHeight * 0.85) {
-								console.log(`[Vectorizer] Filtered out full-frame background: ${width}x${height}`);
-								continue;
-							}
-							
-							// Skip if it's a border box (large rectangle near edges - more aggressive)
-							if (width >= targetCanvasWidth * 0.80 && height >= targetCanvasHeight * 0.80 && 
-							    (nearLeft || nearRight) && (nearTop || nearBottom)) {
-								console.log(`[Vectorizer] Filtered out border box: ${width}x${height} at edges`);
-								continue;
-							}
-							
-							// Skip tall thin side bars (more aggressive - thinner threshold)
-							if (width <= targetCanvasWidth * 0.05 && height >= targetCanvasHeight * 0.5 && (nearLeft || nearRight)) {
-								console.log(`[Vectorizer] Filtered out side bar: ${width}x${height}`);
-								continue;
-							}
-							
-							// Skip wide thin top/bottom bars (more aggressive - thinner threshold)
-							if (height <= targetCanvasHeight * 0.05 && width >= targetCanvasWidth * 0.5 && (nearTop || nearBottom)) {
-								console.log(`[Vectorizer] Filtered out top/bottom bar: ${width}x${height}`);
-								continue;
-							}
-							
-							// Skip any rectangle that forms a bounding box (exact canvas dimensions or very close)
-							if (Math.abs(width - targetCanvasWidth) < 10 && Math.abs(height - targetCanvasHeight) < 10) {
-								console.log(`[Vectorizer] Filtered out bounding box rectangle: ${width}x${height}`);
-								continue;
+							if (isExactCanvasBackground) {
+								pathsToFilter.push(pathTag);
+								continue; // Skip only exact background
 							}
 						}
 					}
+					// Keep ALL other paths - no filtering
+					filteredPaths.push(pathTag);
+				} else {
+					// If we can't parse it, keep it anyway
 					filteredPaths.push(pathTag);
 				}
 			}
 			
+			// CRITICAL: If filtering removed everything, use ALL original paths
 			if (filteredPaths.length === 0) {
-				throw new Error('No valid paths found after filtering background shapes');
+				console.warn(`[Vectorizer] All paths were filtered! Using ALL ${pathMatch.length} original paths.`);
+				filteredPaths.push(...pathMatch);
 			}
+			
+			console.log(`[Vectorizer] Filtered ${pathsToFilter.length} exact background paths, kept ${filteredPaths.length} paths (preserving image accuracy)`);
 
 			// Extract all path data and split by Move commands for smaller segments
 			const paths: string[] = [];
@@ -327,11 +324,14 @@ export const vectorizeImage = async (imagePath: string, timeoutMs: number = 1500
 				return a.x - b.x;
 			});
 
-			// Create optimized SVG - STROKES ONLY (no fills, no rect, no foreignObject, no background)
-			// Use exact viewBox "0 0 1920 1080" as requested, ensure all coordinates are within frame
+			// Create optimized SVG - preserve ALL paths to match original image
+			// Use exact viewBox "0 0 1920 1080" with preserveAspectRatio to prevent layout shifts
+			// Use WHITE stroke on black background for visible sketching
+			// Use slightly thicker stroke for better visibility
 			const optimizedSvg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
-	<g fill="none" stroke="#000000" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+	<rect width="1920" height="1080" fill="#000000"/> <!-- Black background -->
+	<g fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 		${segs.map((s, i) => {
 			return `<path d="${s.d}" fill="none" id="path-${i}" vector-effect="non-scaling-stroke"/>`;
 		}).join('\n\t\t')}

@@ -367,7 +367,7 @@ Return ONLY JSON with the following shape:
         src: '{{voiceoverAudio}}',
         startFrame: 0,
         endFrame: totalFrames,
-        volume: 0.85,
+        volume: 1.0, // Full volume for voiceover to be clearly audible
       });
     }
 

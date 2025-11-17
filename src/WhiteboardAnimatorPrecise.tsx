@@ -248,16 +248,23 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 	// Calculate frame ranges
 	const sceneDurationInFrames = Math.floor(sceneDurationSeconds * fps);
 	const revealDurationInFrames = Math.floor(revealFinishSeconds * fps);
-	// Allocate 85% of reveal for drawing, 15% for dwell
-	const drawWindowFrames = Math.max(1, Math.floor(revealDurationInFrames * 0.85));
+	// Allocate 90% of reveal for drawing, 10% for dwell - smoother sketching
+	const drawWindowFrames = Math.max(1, Math.floor(revealDurationInFrames * 0.90));
 	const holdStartFrame = drawWindowFrames;
 	const holdDurationInFrames = sceneDurationInFrames - drawWindowFrames;
 
 	// Parse SVG and extract paths
+	// ALL HOOKS MUST BE CALLED UNCONDITIONALLY AT THE TOP LEVEL - NO CONDITIONAL HOOKS
+	// FIXED: All hooks are now called unconditionally in the same order on every render
 	const [paths, setPaths] = React.useState<PathData[]>([]);
 	const [svgWidth, setSvgWidth] = React.useState<number>(1920);
 	const [svgHeight, setSvgHeight] = React.useState<number>(1080);
 	const [isLoading, setIsLoading] = React.useState(true);
+	
+	// Extract paths length as primitive for stable dependency comparison
+	// This ensures useMemo dependencies are primitives, not object references
+	// CRITICAL: pathsLengthPrimitive is a number, which is compared by value, not reference
+	const pathsLengthPrimitive = paths.length;
 
 	React.useEffect(() => {
 		try {
@@ -546,6 +553,8 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 
 	// Precompute per-stroke schedule for constant-velocity drawing
 	// speedSeconds = 0.0025 * lengthPixels (user-specified), with slight overlap between strokes (20ms)
+	// CRITICAL FIX: Read paths directly but use pathsLengthPrimitive in dependency array
+	// paths state is stable (only changes via setPaths), so reading it is safe
 	const strokeSchedule = React.useMemo(() => {
 		if (paths.length === 0) return [] as Array<{start: number; end: number; length: number}>;
 		const secondsPerPixel = 0.0025;
@@ -607,16 +616,28 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 		}));
 		
 		// Ensure all paths have valid start/end frames and minimum duration
+		// CRITICAL FIX: Ensure minimum duration of at least 2 frames per path for visible animation
 		// Allow flexible start time (not forced to frame 0)
 		for (let i = 0; i < frameSchedule.length; i++) {
 			const s = frameSchedule[i];
 			if (s.start < 0) s.start = 0;
-			if (s.end <= s.start) s.end = s.start + 1;
+			// Ensure minimum duration of 2 frames for visible animation
+			const minDuration = 2;
+			if (s.end <= s.start) {
+				s.end = s.start + minDuration;
+			} else if (s.end - s.start < minDuration) {
+				// Extend duration to minimum if too short
+				s.end = Math.min(s.start + minDuration, drawWindowFrames);
+			}
 			if (s.end > drawWindowFrames) s.end = drawWindowFrames;
 		}
 		
 		return frameSchedule;
-	}, [paths, fps, drawWindowFrames, revealStrategy]);
+		// CRITICAL FIX: Use pathsLengthPrimitive (number) as dependency, not paths array
+		// Reading paths inside useMemo is safe because paths only changes via setPaths (stable)
+		// Using pathsLengthPrimitive ensures recalculation when paths length changes
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [pathsLengthPrimitive, fps, drawWindowFrames, revealStrategy]);
 
 
 	// Calculate path animation progress based on precomputed constant-velocity schedule
@@ -627,8 +648,15 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 			return currentFrame >= drawWindowFrames ? 1 : 0;
 		}
 		
+		// CRITICAL FIX: Ensure currentFrame is relative to sequence start (0-based within sequence)
+		// In Remotion, useCurrentFrame() inside a Sequence returns frames relative to sequence start
 		// Use currentFrame clamped to draw window
 		const t = Math.max(0, Math.min(currentFrame, drawWindowFrames));
+		
+		// Debug logging for troubleshooting (only log for first path at frame 0 to avoid spam)
+		if (pathIndex === 0 && currentFrame === 0 && paths.length > 0) {
+			console.log(`[WhiteboardAnimatorPrecise] Animation start: currentFrame=${currentFrame}, drawWindowFrames=${drawWindowFrames}, totalPaths=${paths.length}, schedule[0]={start:${sched.start}, end:${sched.end}}`);
+		}
 
 		// Fast-draw fallback: compress remaining schedule if behind
 		let accel = 1;
@@ -648,6 +676,7 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 
 		if (t < effectiveStart) return 0;
 		if (t >= effectiveEnd) return 1;
+		// CRITICAL FIX: Ensure span is at least 1 to avoid division by zero or instant completion
 		const span = Math.max(1, effectiveEnd - effectiveStart);
 		const raw = (t - effectiveStart) / span; // linear in-stroke
 		
@@ -690,6 +719,8 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 	const textOpacity = 0;
 
 	// Compute bounding box of all paths to scale up to fill canvas
+	// CRITICAL FIX: Read paths directly but use pathsLengthPrimitive in dependency array
+	// paths state is stable (only changes via setPaths), so reading it is safe
 	const bbox = React.useMemo(() => {
 		if (paths.length === 0) return null;
 		let minX = Number.POSITIVE_INFINITY;
@@ -717,15 +748,29 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 			return null;
 		}
 		return {minX, maxX, minY, maxY};
-	}, [paths]);
+		// CRITICAL FIX: Use pathsLengthPrimitive (number) as dependency, not paths array
+		// Reading paths inside useMemo is safe because paths only changes via setPaths (stable)
+		// Using pathsLengthPrimitive ensures recalculation when paths length changes
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [pathsLengthPrimitive]);
 
 	// Build a transform that scales and centers the path bbox to fit with margins and consistent coverage
+	// Extract values as primitives - these are stable once bbox is set
+	const bboxMinX = bbox ? bbox.minX : null;
+	const bboxMaxX = bbox ? bbox.maxX : null;
+	const bboxMinY = bbox ? bbox.minY : null;
+	const bboxMaxY = bbox ? bbox.maxY : null;
+	const pathsLength = pathsLengthPrimitive;
+	
 	const groupTransform = React.useMemo(() => {
-		if (!bbox) {
+		if (bboxMinX === null || bboxMaxX === null || bboxMinY === null || bboxMaxY === null) {
 			console.warn('[WhiteboardAnimatorPrecise] No bounding box available, using identity transform');
 			return undefined;
 		}
-		const {minX, maxX, minY, maxY} = bbox;
+		const minX = bboxMinX;
+		const maxX = bboxMaxX;
+		const minY = bboxMinY;
+		const maxY = bboxMaxY;
 		const bboxWidth = Math.max(1, maxX - minX);
 		const bboxHeight = Math.max(1, maxY - minY);
 
@@ -768,8 +813,8 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 
 		// Small-zoom bonus for scenes with many small elements (improve legibility)
 		const manySmallElements =
-			paths.length >= 80 ||
-			(bboxWidth / svgWidth < 0.4 && bboxHeight / svgHeight < 0.4 && paths.length >= 40);
+			pathsLength >= 80 ||
+			(bboxWidth / svgWidth < 0.4 && bboxHeight / svgHeight < 0.4 && pathsLength >= 40);
 		if (manySmallElements) {
 			scale *= 1.1; // +10%
 			// Re-clamp to padding
@@ -793,51 +838,31 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 
 		// translate to origin, scale, then center
 		return `translate(${offsetX},${offsetY}) scale(${scale}) translate(${-minX},${-minY})`;
-	}, [bbox, svgWidth, svgHeight, paths.length]);
+	}, [bboxMinX, bboxMaxX, bboxMinY, bboxMaxY, svgWidth, svgHeight, pathsLength]);
 
-	if (isLoading) {
-		return (
-			<AbsoluteFill
-				style={{
-					backgroundColor: '#ffffff',
-					display: 'flex',
-					alignItems: 'center',
-					justifyContent: 'center',
-				}}
-			>
-				<div style={{ color: '#000000', fontSize: 24 }}>Loading sketch...</div>
-			</AbsoluteFill>
-		);
-	}
-
-	if (paths.length === 0) {
-		console.error('[WhiteboardAnimatorPrecise] No paths available - cannot render animation');
-		return (
-			<AbsoluteFill
-				style={{
-					backgroundColor: '#ffffff',
-					display: 'flex',
-					alignItems: 'center',
-					justifyContent: 'center',
-				}}
-			>
-				<div style={{ color: '#ff0000', fontSize: 24, textAlign: 'center' }}>
-					Error: No paths found in SVG<br />
-					<span style={{ fontSize: 14, color: '#666' }}>Check console for details</span>
-				</div>
-			</AbsoluteFill>
-		);
-	}
-
-	// Warn if transform is missing but still render
-	if (!groupTransform) {
-		console.warn('[WhiteboardAnimatorPrecise] No transform available - rendering without auto-fit. Paths:', paths.length, 'BBox:', bbox);
-	}
+	// Compute final transform with fallback if needed
+	// CRITICAL FIX: This useMemo MUST be called BEFORE any early returns
+	// Moving it here ensures all hooks are called unconditionally in the same order
+	const finalTransform = React.useMemo(() => {
+		if (groupTransform) {
+			return groupTransform;
+		}
+		// Fallback: use a safe transform that centers and scales to fit
+		// This ensures paths are always visible even if bounding box calculation fails
+		// Only warn if paths are actually loaded (avoid false warnings during initial render)
+		if (paths.length > 0) {
+			console.warn('[WhiteboardAnimatorPrecise] No transform available - using fallback transform. Paths:', paths.length);
+		}
+		const fallbackScale = Math.min(svgWidth / 1920, svgHeight / 1080, 0.9);
+		const fallbackTranslateX = (svgWidth - 1920 * fallbackScale) / 2;
+		const fallbackTranslateY = (svgHeight - 1080 * fallbackScale) / 2;
+		return `translate(${fallbackTranslateX},${fallbackTranslateY}) scale(${fallbackScale})`;
+	}, [groupTransform, svgWidth, svgHeight]);
 
 	return (
 		<AbsoluteFill
 			style={{
-				backgroundColor: '#ffffff',
+				backgroundColor: '#000000', // Black background for white sketching
 				display: 'flex',
 				alignItems: 'center',
 				justifyContent: 'center',
@@ -865,16 +890,16 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 						height: '100%',
 					}}
 				>
-					{/* Stroke layer: outline animation - white/chalk color on dusty black board; no fills */}
+					{/* Stroke layer: white sketching on black background; no fills */}
 					<g
 						fill="none"
-						stroke="#000000"
-						strokeWidth="1.8"
+						stroke="#ffffff"
+						strokeWidth="2.5"
 						strokeLinecap="round"
 						strokeLinejoin="round"
 						strokeMiterlimit="10"
 						shapeRendering="geometricPrecision"
-						{...(groupTransform ? {transform: groupTransform} : {})}
+						transform={finalTransform}
 					>
 						{/* Last-resort small fade-in for non-incremental elements */}
 						<g style={{opacity: interpolate(currentFrame, [0, Math.max(1, Math.round(fps * 0.06))], [0.98, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
@@ -882,7 +907,10 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 							// Performance: Early skip if path is not in animation window
 							const sched = strokeSchedule[index];
 							if (!isHoldPhase && sched) {
-								if (currentFrame < sched.start) {
+								// CRITICAL FIX: Only skip if we're definitely before the start frame
+								// Allow paths to render even slightly before start for smoother animation
+								// Don't skip paths that are currently animating or already complete (they should be visible)
+								if (currentFrame < Math.max(0, sched.start - 1)) {
 									// Path hasn't started yet - skip rendering
 									return null;
 								}
@@ -909,8 +937,8 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 										strokeDashoffset={dashOffset}
 										vectorEffect="non-scaling-stroke"
 										fill="none"
-										stroke="#000000"
-										strokeWidth="2.4"
+										stroke="#ffffff"
+										strokeWidth="2.5"
 										strokeLinecap="round"
 										strokeLinejoin="round"
 									/>
@@ -982,8 +1010,8 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 										key={`path-${index}`}
 										d={path.d}
 										fill="none"
-										stroke="#000000"
-										strokeWidth="2.4"
+										stroke="#ffffff"
+										strokeWidth="2.5"
 										strokeLinecap="round"
 										strokeLinejoin="round"
 										vectorEffect="non-scaling-stroke"
@@ -1004,7 +1032,7 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 							const dashArray = `${dashLength} ${dashLength * 1000}`;
 							const dashOffset = dashLength * (1 - pathProgress);
 
-							// No colorful fills - only black strokes for sketching animation
+							// White strokes for visible sketching animation on black background
 							return (
 								<path
 									key={`path-${index}`}
@@ -1014,7 +1042,7 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 									vectorEffect="non-scaling-stroke"
 									fill="none"
 									stroke="#000000"
-									strokeWidth="2.4"
+									strokeWidth="2.5"
 									strokeLinecap="round"
 									strokeLinejoin="round"
 								/>

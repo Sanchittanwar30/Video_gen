@@ -11,7 +11,9 @@ import {
 	interpolate,
 	staticFile,
 } from 'remotion';
+import {loadFont} from '@remotion/google-fonts/Kalam';
 import { WhiteboardAnimatorPrecise } from '../../src/WhiteboardAnimatorPrecise';
+import { SubtitleOverlay } from './SubtitleOverlay';
 
 export interface AIVideoFrame {
 	id: string;
@@ -85,6 +87,9 @@ const TextSlide: React.FC<{frame: AIVideoFrame; startFrame: number; durationInFr
 	startFrame,
 	durationInFrames,
 }) => {
+	// Load handwritten font for all text elements
+	loadFont();
+	
 	const currentFrame = useCurrentFrame();
 	const {fps} = useVideoConfig();
 	const progress = interpolate(
@@ -118,7 +123,8 @@ const TextSlide: React.FC<{frame: AIVideoFrame; startFrame: number; durationInFr
 				<h1
 					style={{
 						fontSize: 72,
-						fontWeight: 900,
+						fontWeight: 400,
+						fontFamily: 'Kalam, "Caveat", "Dancing Script", "Indie Flower", "Shadows Into Light", cursive, sans-serif',
 						marginBottom: 28,
 						textAlign: 'center',
 						color: '#000',
@@ -137,11 +143,12 @@ const TextSlide: React.FC<{frame: AIVideoFrame; startFrame: number; durationInFr
 				<p
 					style={{
 						fontSize: 40,
+						fontWeight: 400,
+						fontFamily: 'Kalam, "Caveat", "Dancing Script", "Indie Flower", "Shadows Into Light", cursive, sans-serif',
 						lineHeight: 1.35,
 						maxWidth: 900,
 						textAlign: 'center',
 						color: '#000',
-						fontWeight: 900,
 						letterSpacing: 0,
 						textRendering: 'geometricPrecision',
 						WebkitTextStroke: '0.25px #000',
@@ -162,6 +169,9 @@ const BulletSlide: React.FC<{
 	startFrame: number;
 	durationInFrames: number;
 }> = ({frame, startFrame}) => {
+	// Load handwritten font for all text elements
+	loadFont();
+	
 	const currentFrame = useCurrentFrame();
 	const {fps} = useVideoConfig();
 
@@ -183,7 +193,8 @@ const BulletSlide: React.FC<{
 				<h1
 					style={{
 						fontSize: 68,
-						fontWeight: 900,
+						fontWeight: 400,
+						fontFamily: 'Kalam, "Caveat", "Dancing Script", "Indie Flower", "Shadows Into Light", cursive, sans-serif',
 						marginBottom: 28,
 						textAlign: 'center',
 						color: '#000',
@@ -221,11 +232,12 @@ const BulletSlide: React.FC<{
 							key={`${frame.id}-bullet-${index}`}
 							style={{
 								fontSize: 34,
+								fontWeight: 400,
+								fontFamily: 'Kalam, "Caveat", "Dancing Script", "Indie Flower", "Shadows Into Light", cursive, sans-serif',
 								lineHeight: 1.4,
 								opacity: progress,
 								transform: `translateY(${(1 - progress) * 15}px)`,
 								color: '#000',
-								fontWeight: 900,
 								letterSpacing: 0,
 								textRendering: 'geometricPrecision',
 								WebkitTextStroke: '0.2px #000',
@@ -390,16 +402,20 @@ const SketchingSVG: React.FC<{
 					width: '100%',
 					height: '100%',
 					objectFit: 'cover',
-					backgroundColor: '#ffffff',
+					backgroundColor: '#000000',
 				}}
 			/>
 		);
 	}
 
 	if (!svgContent || paths.length === 0) {
+		loadFont(); // Load handwritten font for loading messages
 		return (
 			<div style={{width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-				<div style={{color: '#475569'}}>Loading sketch...</div>
+				<div style={{
+					color: '#475569',
+					fontFamily: 'Kalam, "Caveat", "Dancing Script", "Indie Flower", "Shadows Into Light", cursive, sans-serif'
+				}}>Loading sketch...</div>
 			</div>
 		);
 	}
@@ -545,7 +561,7 @@ const SketchingSVG: React.FC<{
 	return (
 		<AbsoluteFill
 			style={{
-				backgroundColor: '#ffffff',
+				backgroundColor: '#000000',
 				display: 'flex',
 				alignItems: 'center',
 				justifyContent: 'center',
@@ -610,6 +626,7 @@ const WhiteboardFrame: React.FC<{
 	heading?: string;
 	text?: string;
 	svgString?: string; // Pre-loaded SVG string
+	sequenceDurationInFrames?: number; // CRITICAL: Individual sequence duration, not total video duration
 }> = ({
 	asset,
 	animate = false,
@@ -618,8 +635,12 @@ const WhiteboardFrame: React.FC<{
 	heading,
 	text,
 	svgString: providedSvgString,
+	sequenceDurationInFrames,
 }) => {
-	const {durationInFrames, fps} = useVideoConfig();
+	const {fps} = useVideoConfig();
+	// CRITICAL FIX: Use sequence duration if provided, otherwise fall back to total duration
+	// This ensures each frame animates correctly, not just first and last
+	const durationInFrames = sequenceDurationInFrames ?? useVideoConfig().durationInFrames;
 	const [svgString, setSvgString] = React.useState<string | null>(providedSvgString || null);
 	const [isLoading, setIsLoading] = React.useState(!providedSvgString);
 	const [loadError, setLoadError] = React.useState(false);
@@ -677,17 +698,19 @@ const WhiteboardFrame: React.FC<{
 	}, [vectorized?.svgUrl, animate, providedSvgString]);
 
 	if (!asset) {
+		loadFont(); // Load handwritten font for error messages
 		return (
 			<div
 				style={{
 					width: '100%',
 					height: '100%',
-					background: '#ffffff',
+					background: '#000000',
 					display: 'flex',
 					alignItems: 'center',
 					justifyContent: 'center',
 					fontSize: 32,
-					color: '#000000',
+					fontFamily: 'Kalam, "Caveat", "Dancing Script", "Indie Flower", "Shadows Into Light", cursive, sans-serif',
+					color: '#ffffff',
 				}}
 			>
 				Whiteboard asset unavailable
@@ -706,7 +729,7 @@ const WhiteboardFrame: React.FC<{
 					width: '100%',
 					height: '100%',
 					objectFit: 'cover',
-					backgroundColor: '#ffffff',
+					backgroundColor: '#000000',
 				}}
 			/>
 		);
@@ -718,7 +741,7 @@ const WhiteboardFrame: React.FC<{
 		const items = vectorizedList.slice(0, 3);
 		const segmentFrames = Math.max(1, Math.floor(durationInFrames / items.length));
 		return (
-			<AbsoluteFill style={{ backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+			<AbsoluteFill style={{ backgroundColor: '#000000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
 				<div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, 1fr)`, gap: '32px', width: '92%', height: '92%' }}>
 					{items.map((it, idx) => {
 						const start = idx * segmentFrames;
@@ -742,12 +765,29 @@ const WhiteboardFrame: React.FC<{
 
 	// Use new WhiteboardAnimatorPrecise component for flexible reveal based on content
 	if (animate && vectorized && svgString) {
+		// Validate SVG string is not empty
+		if (!svgString || svgString.trim().length === 0) {
+			console.error('[WhiteboardFrame] SVG string is empty, falling back to static image');
+			return (
+				<Img
+					src={asset}
+					style={{
+						width: '100%',
+						height: '100%',
+						objectFit: 'cover',
+						backgroundColor: '#ffffff',
+					}}
+				/>
+			);
+		}
+		
 		const sceneDurationSeconds = durationInFrames / fps;
 		// Allocate 70-80% of scene time to sketching animation (flexible based on content/voiceover)
 		const revealSeconds = Math.min(
 			Math.max(4, sceneDurationSeconds * 0.75), // Minimum 4 seconds for sketching (flexible)
 			Math.max(1, sceneDurationSeconds - 1)
 		);
+		
 		return (
 			<WhiteboardAnimatorPrecise
 				svgString={svgString}
@@ -762,16 +802,21 @@ const WhiteboardFrame: React.FC<{
 
 	// Loading state
 	if (animate && vectorized && isLoading) {
+		loadFont(); // Load handwritten font for loading messages
 		return (
 			<AbsoluteFill
 				style={{
-					backgroundColor: '#ffffff',
+					backgroundColor: '#000000',
 					display: 'flex',
 					alignItems: 'center',
 					justifyContent: 'center',
 				}}
 			>
-				<div style={{ color: '#000000', fontSize: 24 }}>Loading sketch...</div>
+				<div style={{ 
+					color: '#ffffff', 
+					fontSize: 24,
+					fontFamily: 'Kalam, "Caveat", "Dancing Script", "Indie Flower", "Shadows Into Light", cursive, sans-serif'
+				}}>Loading sketch...</div>
 			</AbsoluteFill>
 		);
 	}
@@ -785,7 +830,7 @@ const WhiteboardFrame: React.FC<{
 					width: '100%',
 					height: '100%',
 					objectFit: 'cover',
-					backgroundColor: '#ffffff',
+					backgroundColor: '#000000',
 				}}
 			/>
 		);
@@ -823,7 +868,7 @@ const WhiteboardFrame: React.FC<{
 		return (
 			<AbsoluteFill
 				style={{
-					backgroundColor: '#ffffff',
+					backgroundColor: '#000000',
 					overflow: 'hidden',
 				}}
 			>
@@ -857,7 +902,7 @@ const WhiteboardFrame: React.FC<{
 				width: '100%',
 				height: '100%',
 				objectFit: 'cover',
-				backgroundColor: '#ffffff',
+				backgroundColor: '#000000',
 			}}
 		/>
 	);
@@ -878,10 +923,18 @@ const FrameWithTransition: React.FC<{
 	const currentFrame = useCurrentFrame();
 	const {fps} = useVideoConfig();
 	
+	// CRITICAL FIX: Convert absolute frame numbers to relative (sequence-based) frame numbers
+	// useCurrentFrame() inside a Sequence returns frames relative to sequence start (0-based)
+	// But fadeInStart, fadeInEnd, etc. are absolute frame numbers, so we need to subtract currentStart
+	const relativeFadeInStart = fadeInStart - currentStart;
+	const relativeFadeInEnd = fadeInEnd - currentStart;
+	const relativeFadeOutStart = fadeOutStart - currentStart;
+	const relativeFadeOutEnd = fadeOutEnd - currentStart;
+	
 	// Smooth fade in/out with cross-fade effect
 	const fadeIn = interpolate(
 		currentFrame,
-		[fadeInStart, fadeInEnd],
+		[relativeFadeInStart, relativeFadeInEnd],
 		[0, 1],
 		{
 			easing: Easing.bezier(0.22, 0.0, 0.08, 1.0),
@@ -892,7 +945,7 @@ const FrameWithTransition: React.FC<{
 	
 	const fadeOut = interpolate(
 		currentFrame,
-		[fadeOutStart, fadeOutEnd],
+		[relativeFadeOutStart, relativeFadeOutEnd],
 		[1, 0],
 		{
 			easing: Easing.bezier(0.22, 0.0, 0.08, 1.0),
@@ -920,6 +973,7 @@ const FrameWithTransition: React.FC<{
 
 const MotionFrame: React.FC<{asset?: string}> = ({asset}) => {
 	if (!asset) {
+		loadFont(); // Load handwritten font for error messages
 		return (
 			<div
 				style={{
@@ -931,6 +985,7 @@ const MotionFrame: React.FC<{asset?: string}> = ({asset}) => {
 					alignItems: 'center',
 					justifyContent: 'center',
 					fontSize: 32,
+					fontFamily: 'Kalam, "Caveat", "Dancing Script", "Indie Flower", "Shadows Into Light", cursive, sans-serif',
 				}}
 			>
 				Motion scene unavailable
@@ -982,11 +1037,11 @@ export const VideoFromAI: React.FC<{data: AIVideoData}> = ({data}) => {
 
 	// Calculate background music volume with fade-in and fade-out
 	const musicFadeDuration = fps * 2; // 2 seconds fade-in/fade-out
-	const maxMusicVolume = 0.15; // 15% volume (reduced from 30% to make voiceover more prominent)
+	const maxMusicVolume = 0.05; // 5% volume (very quiet to not shadow voiceover)
 	const musicFadeIn = interpolate(
 		currentFrame,
 		[0, musicFadeDuration],
-		[0, maxMusicVolume], // Fade from 0 to 15% volume
+		[0, maxMusicVolume], // Fade from 0 to 5% volume
 		{
 			extrapolateLeft: 'clamp',
 			extrapolateRight: 'clamp',
@@ -995,7 +1050,7 @@ export const VideoFromAI: React.FC<{data: AIVideoData}> = ({data}) => {
 	const musicFadeOut = interpolate(
 		currentFrame,
 		[totalVideoFrames - musicFadeDuration, totalVideoFrames],
-		[maxMusicVolume, 0], // Fade from 15% to 0 volume
+		[maxMusicVolume, 0], // Fade from 5% to 0 volume
 		{
 			extrapolateLeft: 'clamp',
 			extrapolateRight: 'clamp',
@@ -1004,14 +1059,14 @@ export const VideoFromAI: React.FC<{data: AIVideoData}> = ({data}) => {
 	const musicVolume = Math.min(musicFadeIn, musicFadeOut > 0 ? musicFadeOut : musicFadeIn);
 
 	return (
-		<AbsoluteFill style={{backgroundColor: '#ffffff', color: '#000000', overflow: 'hidden'}}>
+		<AbsoluteFill style={{backgroundColor: '#000000', color: '#ffffff', overflow: 'hidden'}}>
 			{/* Background music - plays throughout entire video with fade-in/fade-out and loops if needed */}
 			{/* Only render if backgroundMusic is provided and valid */}
 			{backgroundMusicSrc && backgroundMusicSrc.trim() !== '' && (
 				<Audio
 					src={backgroundMusicSrc}
 					startFrom={0}
-					volume={musicVolume} // Dynamic volume with fade-in/fade-out (max 15%)
+					volume={musicVolume} // Dynamic volume with fade-in/fade-out (max 5%)
 					loop // Loop if video is longer than music track
 				/>
 			)}
@@ -1053,23 +1108,58 @@ export const VideoFromAI: React.FC<{data: AIVideoData}> = ({data}) => {
 					<Sequence key={frame.id} from={currentStart} durationInFrames={durationInFrames}>
 						{/* Voiceover audio - synchronized with sketching animation */}
 						{/* Delay voiceover start to sync with sketching: start after 10% of scene or when sketching begins */}
-						{voiceoverSrc && frame.type === 'whiteboard_diagram' && frame.animate ? (
-							<Sequence from={Math.max(0, Math.floor(durationInFrames * 0.1))} durationInFrames={durationInFrames}>
-								<Audio
-									key={`voiceover-${frame.id}`}
-									src={voiceoverSrc}
-									startFrom={0}
-									volume={1.0} // Full volume (100%) to be clearly audible over background music (15%)
-								/>
-							</Sequence>
-						) : voiceoverSrc ? (
-							<Audio
-								key={`voiceover-${frame.id}`}
-								src={voiceoverSrc}
-								startFrom={0}
-								volume={1.0}
-							/>
-						) : null}
+						{(() => {
+							const voiceoverDelayFrames = frame.type === 'whiteboard_diagram' && frame.animate 
+								? Math.max(0, Math.floor(durationInFrames * 0.1))
+								: 0;
+							
+							return voiceoverSrc ? (
+								<Sequence from={voiceoverDelayFrames} durationInFrames={durationInFrames}>
+									<Audio
+										key={`voiceover-${frame.id}`}
+										src={voiceoverSrc}
+										startFrom={0}
+										volume={1.0} // Full volume (100%) to be clearly audible over background music (5%)
+									/>
+								</Sequence>
+							) : null;
+						})()}
+						
+						{/* Subtitles - synchronized with voiceover (or test mode) */}
+						{frame.voiceoverScript ? (
+							(() => {
+								// For test mode (no voiceoverUrl), show subtitles immediately
+								// For normal mode with voiceover, delay slightly to sync with sketching
+								const hasVoiceover = !!frame.voiceoverUrl;
+								const voiceoverDelayFrames = hasVoiceover && frame.type === 'whiteboard_diagram' && frame.animate 
+									? Math.max(0, Math.floor(durationInFrames * 0.1))
+									: 0; // No delay in test mode
+								
+								// Debug log
+								console.log(`[VideoFromAI] Rendering subtitle for frame ${frame.id}:`, {
+									text: frame.voiceoverScript.substring(0, 50) + '...',
+									startFrame: currentStart,
+									durationInFrames,
+									voiceoverDelayFrames,
+									hasVoiceover
+								});
+								
+								return (
+									<SubtitleOverlay
+										text={frame.voiceoverScript}
+										startFrame={currentStart}
+										durationInFrames={durationInFrames}
+										voiceoverDelayFrames={voiceoverDelayFrames}
+									/>
+								);
+							})()
+						) : (
+							// Debug: Log when subtitle is not shown
+							(() => {
+								console.log(`[VideoFromAI] No subtitle for frame ${frame.id} - voiceoverScript:`, frame.voiceoverScript);
+								return null;
+							})()
+						)}
 						<FrameWithTransition
 							fadeInStart={fadeInStart}
 							fadeInEnd={fadeInEnd}
@@ -1088,6 +1178,7 @@ export const VideoFromAI: React.FC<{data: AIVideoData}> = ({data}) => {
 									heading={frame.heading}
 									text={frame.text}
 									svgString={frame.svgString}
+									sequenceDurationInFrames={durationInFrames} // CRITICAL: Pass individual frame duration
 								/>
 							) : (
 								<MotionFrame asset={frame.asset} />

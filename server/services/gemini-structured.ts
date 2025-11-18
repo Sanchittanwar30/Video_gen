@@ -48,14 +48,14 @@ Given topic + description, output:
       "id": "frame_1",
       "type": "whiteboard_diagram",
       "prompt_for_image": "A clear educational whiteboard diagram explaining [specific concept from topic] - introduction/overview. Use geometric shapes, flowcharts, and visual connections to show the main concept. Include essential labels (less than 10% text). Make it informative and directly related to the topic.",
-      "heading": "optional string for context",
+      "heading": "CRITICAL: Must be directly related to the input topic. Use a concise, topic-specific heading that describes what this frame explains (e.g., 'Introduction to [topic]', 'Understanding [key concept]', '[Topic] Overview'). Do NOT use generic titles like 'Frame 1' or random unrelated titles.",
       "duration": 4
     },
     {
       "id": "frame_2",
       "type": "whiteboard_diagram",
       "prompt_for_image": "A clear educational whiteboard diagram explaining [specific aspect of topic] in detail. Use geometric shapes, flowcharts, and visual connections to show relationships and processes. Include essential labels (less than 10% text). Make it informative and directly related to the topic.",
-      "heading": "optional string for context",
+      "heading": "CRITICAL: Must be directly related to the input topic. Use a concise, topic-specific heading that describes what this frame explains. Do NOT use generic titles like 'Frame 2' or random unrelated titles.",
       "duration": 4
     }
     // Maximum 5 frames total - generate 1-5 frames based on topic complexity

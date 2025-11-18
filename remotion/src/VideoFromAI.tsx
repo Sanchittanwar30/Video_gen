@@ -1125,41 +1125,28 @@ export const VideoFromAI: React.FC<{data: AIVideoData}> = ({data}) => {
 							) : null;
 						})()}
 						
-						{/* Subtitles - synchronized with voiceover (or test mode) */}
+						{/* Subtitles - synchronized with voiceover (movie-style subtitles) */}
 						{frame.voiceoverScript ? (
 							(() => {
-								// For test mode (no voiceoverUrl), show subtitles immediately
-								// For normal mode with voiceover, delay slightly to sync with sketching
+								// Calculate voiceover delay to match audio delay
+								// Subtitles should start exactly when voiceover audio starts
 								const hasVoiceover = !!frame.voiceoverUrl;
 								const voiceoverDelayFrames = hasVoiceover && frame.type === 'whiteboard_diagram' && frame.animate 
 									? Math.max(0, Math.floor(durationInFrames * 0.1))
-									: 0; // No delay in test mode
+									: 0; // No delay if no voiceover or not animated
 								
-								// Debug log
-								console.log(`[VideoFromAI] Rendering subtitle for frame ${frame.id}:`, {
-									text: frame.voiceoverScript.substring(0, 50) + '...',
-									startFrame: currentStart,
-									durationInFrames,
-									voiceoverDelayFrames,
-									hasVoiceover
-								});
-								
+								// Subtitles should show for the ENTIRE voiceover duration
+								// Start when voiceover starts, end when sequence ends (or voiceover ends)
 								return (
 									<SubtitleOverlay
 										text={frame.voiceoverScript}
-										startFrame={currentStart}
-										durationInFrames={durationInFrames}
-										voiceoverDelayFrames={voiceoverDelayFrames}
+										startFrame={0} // Always 0 since we're inside the Sequence (relative frames)
+										durationInFrames={durationInFrames} // Show for entire sequence duration
+										voiceoverDelayFrames={voiceoverDelayFrames} // Start when voiceover starts
 									/>
 								);
 							})()
-						) : (
-							// Debug: Log when subtitle is not shown
-							(() => {
-								console.log(`[VideoFromAI] No subtitle for frame ${frame.id} - voiceoverScript:`, frame.voiceoverScript);
-								return null;
-							})()
-						)}
+						) : null}
 						<FrameWithTransition
 							fadeInStart={fadeInStart}
 							fadeInEnd={fadeInEnd}

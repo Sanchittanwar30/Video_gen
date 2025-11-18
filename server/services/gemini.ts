@@ -4,10 +4,9 @@ import { promises as fs } from "fs";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
 
-
-
- // Use the v1beta endpoint (some Gemini models / features are available on v1beta)
-const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+// API Base URLs
+const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1/models";
+const VERTEX_AI_BASE = "https://us-central1-aiplatform.googleapis.com";
 
 const DEFAULT_TEXT_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-pro";
 const TEXT_MODEL_FALLBACKS = process.env.GEMINI_TEXT_MODEL_FALLBACKS
@@ -15,14 +14,27 @@ const TEXT_MODEL_FALLBACKS = process.env.GEMINI_TEXT_MODEL_FALLBACKS
   : ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"];
 
 // Keep default image model but also support a fallback list via env
-const DEFAULT_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL ?? "imagen-4.0-generate-preview-06-06";
+// Updated to use stable model names for Vertex AI v1
+const DEFAULT_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL ?? "imagen-4.0-generate-001";
 const IMAGE_MODEL_FALLBACKS = process.env.GEMINI_IMAGE_MODEL_FALLBACKS
   ? process.env.GEMINI_IMAGE_MODEL_FALLBACKS.split(",").map((s) => s.trim()).filter(Boolean)
   : [
-      "imagen-3.0-generate-001",           // Stable fallback model
-      "imagen-3.0-fast-generate-001",      // Faster alternative
+      "imagen-4.0-generate-001",          // Stable GA version
+      "imagen-3.0-generate-001",          // Stable fallback model
       "imagen-2.0-generate-001",           // Older but reliable
     ];
+
+// Google Cloud Project ID for Vertex AI (required for Imagen models)
+const GOOGLE_CLOUD_PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT_ID || process.env.GCP_PROJECT_ID;
+
+// Debug logging to verify project ID is loaded correctly
+if (!GOOGLE_CLOUD_PROJECT_ID || GOOGLE_CLOUD_PROJECT_ID === 'your-project-id') {
+  console.error('[ERROR] GOOGLE_CLOUD_PROJECT_ID is not set correctly!');
+  console.error('  Current value:', GOOGLE_CLOUD_PROJECT_ID);
+  console.error('  Please set GOOGLE_CLOUD_PROJECT_ID in your .env file');
+} else {
+  console.log(`[Vertex AI] Project ID loaded: ${GOOGLE_CLOUD_PROJECT_ID}`);
+}
 const IMAGE_SAMPLE_COUNT = Math.max(1, Number(process.env.GEMINI_IMAGE_SAMPLE_COUNT ?? "1"));
 const IMAGE_MIME_TYPE = process.env.GEMINI_IMAGE_MIME_TYPE ?? "image/png";
 
@@ -85,6 +97,134 @@ function buildAxios(apiKey: string): AxiosInstance {
     timeout: 120_000, // Increased to 120 seconds for image generation
     headers: { "Content-Type": "application/json" },
   });
+}
+
+/**
+ * Build axios instance for Vertex AI (Imagen models)
+ * Uses Application Default Credentials (ADC) via access token
+ */
+async function buildVertexAxios(): Promise<AxiosInstance> {
+  if (!GOOGLE_CLOUD_PROJECT_ID) {
+    throw new Error(
+      "GOOGLE_CLOUD_PROJECT_ID or GCP_PROJECT_ID environment variable is required for Imagen models.\n" +
+      "Set it to your Google Cloud project ID (e.g., 'my-project-123456')."
+    );
+  }
+
+  // Try to get access token in order of preference:
+  // 1. Service account JSON string from environment
+  // 2. Service account file from GOOGLE_APPLICATION_CREDENTIALS
+  // 3. gcloud CLI (if available)
+  let accessToken: string | undefined;
+  
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+    console.log("[Vertex AI] Using service account from GOOGLE_APPLICATION_CREDENTIALS_JSON");
+    accessToken = await getAccessTokenFromServiceAccount(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+  } else {
+    accessToken = await getAccessTokenFromADC();
+  }
+
+  if (!accessToken) {
+    throw new Error(
+      "Failed to obtain access token for Vertex AI.\n" +
+      "Please set up authentication using one of these methods:\n" +
+      "1. Set GOOGLE_APPLICATION_CREDENTIALS to path of service account JSON file\n" +
+      "2. Set GOOGLE_APPLICATION_CREDENTIALS_JSON to service account JSON string\n" +
+      "3. Install and configure gcloud CLI: https://cloud.google.com/sdk/docs/install\n" +
+      "   Then run: gcloud auth application-default login"
+    );
+  }
+
+  return axios.create({
+    baseURL: VERTEX_AI_BASE,
+    timeout: 120_000,
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${accessToken}`,
+    },
+  });
+}
+
+/**
+ * Get access token from Application Default Credentials
+ * This works if GOOGLE_APPLICATION_CREDENTIALS is set or gcloud auth is configured
+ */
+async function getAccessTokenFromADC(): Promise<string | undefined> {
+  try {
+    // First, try to use service account from environment variable
+    const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    if (credsPath) {
+      console.log(`[Vertex AI] Using service account from GOOGLE_APPLICATION_CREDENTIALS: ${credsPath}`);
+      return await getAccessTokenFromServiceAccountFile(credsPath);
+    }
+
+    // Fallback: try gcloud CLI to get access token if available
+    try {
+      const { execSync } = require("child_process");
+      const token = execSync("gcloud auth print-access-token", { encoding: "utf-8" }).trim();
+      console.log("[Vertex AI] Using access token from gcloud CLI");
+      return token;
+    } catch (gcloudError) {
+      // gcloud not available or not authenticated - this is fine, we'll use service account
+      console.debug("[Vertex AI] gcloud CLI not available, will use service account credentials");
+    }
+  } catch (error: any) {
+    console.warn("Could not get access token from ADC:", error?.message || error);
+  }
+  return undefined;
+}
+
+/**
+ * Get access token from service account JSON string
+ */
+async function getAccessTokenFromServiceAccount(jsonString: string): Promise<string | undefined> {
+  try {
+    // Try to use google-auth-library if available
+    let JWT: any;
+    try {
+      JWT = require("google-auth-library").JWT;
+    } catch {
+      throw new Error("google-auth-library package is required. Install it with: npm install google-auth-library");
+    }
+    
+    const credentials = JSON.parse(jsonString);
+    const jwtClient = new JWT({
+      email: credentials.client_email,
+      key: credentials.private_key,
+      scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+    });
+    const tokenResponse = await jwtClient.getAccessToken();
+    return tokenResponse?.token || undefined;
+  } catch (error: any) {
+    console.warn("Could not get access token from service account JSON:", error.message);
+    return undefined;
+  }
+}
+
+/**
+ * Get access token from service account file path
+ */
+async function getAccessTokenFromServiceAccountFile(filePath: string): Promise<string | undefined> {
+  try {
+    // Try to use google-auth-library if available
+    let GoogleAuth: any;
+    try {
+      GoogleAuth = require("google-auth-library").GoogleAuth;
+    } catch {
+      throw new Error("google-auth-library package is required. Install it with: npm install google-auth-library");
+    }
+    
+    const auth = new GoogleAuth({
+      keyFile: filePath,
+      scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+    });
+    const client = await auth.getClient();
+    const tokenResponse = await client.getAccessToken();
+    return tokenResponse?.token || undefined;
+  } catch (error: any) {
+    console.warn("Could not get access token from service account file:", error.message);
+    return undefined;
+  }
 }
 
 /**
@@ -288,11 +428,13 @@ export async function callGeminiImage(
   prompt: string,
   model: string = DEFAULT_IMAGE_MODEL
 ): Promise<string> {
-  const apiKey = getApiKey();
-  const client = buildAxios(apiKey);
-
   // build model sequence: explicit param first, then configured fallbacks (unique)
   const fallbacks = Array.from(new Set([model, ...IMAGE_MODEL_FALLBACKS]));
+
+  // We'll build clients dynamically for each fallback since they might mix Imagen and non-Imagen models
+  const apiKey = getApiKey();
+  let geminiClient: AxiosInstance | null = null;
+  let vertexClient: AxiosInstance | null = null;
 
   // helper to produce truncated safe dumps for logs/errors
   const safeDump = (o: any, max = 2000) => {
@@ -317,12 +459,40 @@ export async function callGeminiImage(
   let lastError: any = null;
 
   for (const candidateModel of fallbacks) {
-    const lower = candidateModel.toLowerCase();
-    const usePredict = lower.includes("imagen") || lower.includes("image");
+    const candidateLower = candidateModel.toLowerCase();
+    const candidateIsImagen = candidateLower.includes("imagen");
 
-    const url = usePredict ? `/${candidateModel}:predict` : `/${candidateModel}:generateContent`;
+    // Build appropriate client for this model type
+    let client: AxiosInstance;
+    if (candidateIsImagen) {
+      // Vertex AI client for Imagen models
+      if (!vertexClient) {
+        vertexClient = await buildVertexAxios();
+      }
+      client = vertexClient;
+    } else {
+      // Generative Language API client for other models
+      if (!geminiClient) {
+        geminiClient = buildAxios(apiKey);
+      }
+      client = geminiClient;
+    }
 
-    const payload = usePredict
+    // Build URL based on model type
+    let url: string;
+    if (candidateIsImagen) {
+      // Vertex AI v1 endpoint for Imagen models
+      // Format: /v1/projects/{PROJECT_ID}/locations/us-central1/publishers/google/models/{MODEL}:predict
+      if (!GOOGLE_CLOUD_PROJECT_ID) {
+        throw new Error(`GOOGLE_CLOUD_PROJECT_ID is required for Imagen model: ${candidateModel}`);
+      }
+      url = `/v1/projects/${GOOGLE_CLOUD_PROJECT_ID}/locations/us-central1/publishers/google/models/${candidateModel}:predict`;
+    } else {
+      // Generative Language API v1 endpoint for other models
+      url = `/${candidateModel}:generateContent`;
+    }
+
+    const payload = candidateIsImagen
       ? {
           instances: [
             {
@@ -352,9 +522,11 @@ export async function callGeminiImage(
         console.debug(`Gemini (${candidateModel}) response snapshot: ${safeDump(data, 4000)}`);
       } catch {}
 
+      // Extract base64 from API response format
       let base64: string | undefined;
 
-      if (usePredict) {
+      if (candidateIsImagen) {
+        // Imagen models use :predict endpoint with predictions array
         const predictions = Array.isArray(data?.predictions) ? data.predictions : [];
         for (const prediction of predictions) {
           base64 =
@@ -364,6 +536,7 @@ export async function callGeminiImage(
           if (base64) break;
         }
       } else {
+        // Other models use :generateContent endpoint with candidates array
         const candidates = data?.candidates ?? [];
         for (const cand of candidates) {
           base64 = tryExtractBase64(cand?.content) ?? tryExtractBase64(cand);
@@ -380,16 +553,22 @@ export async function callGeminiImage(
           }
           if (base64) break;
         }
+      }
 
-        // Extra fallback shapes
-        if (!base64) {
-          base64 =
-            tryExtractBase64(data?.attachment) ??
-            tryExtractBase64(data?.attachments) ??
-            tryExtractBase64(data?.outputs) ??
-            tryExtractBase64(data?.result) ??
-            tryExtractBase64(data?.content);
-        }
+      // Extra fallback shapes for different response formats (for both types)
+      if (!base64) {
+        base64 =
+          tryExtractBase64(data?.attachment) ??
+          tryExtractBase64(data?.attachments) ??
+          tryExtractBase64(data?.outputs) ??
+          tryExtractBase64(data?.result) ??
+          tryExtractBase64(data?.content) ??
+          // Support predict-style responses (for Imagen)
+          tryExtractBase64(data?.predictions?.[0]?.bytesBase64Encoded) ??
+          tryExtractBase64(data?.predictions?.[0]) ??
+          // Support generateContent-style responses (for other models)
+          tryExtractBase64(data?.candidates?.[0]?.content) ??
+          tryExtractBase64(data?.candidates?.[0]);
       }
 
       if (!base64) {

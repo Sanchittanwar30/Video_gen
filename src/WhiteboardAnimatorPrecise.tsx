@@ -680,25 +680,13 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 		const span = Math.max(1, effectiveEnd - effectiveStart);
 		const raw = (t - effectiveStart) / span; // linear in-stroke
 		
-		// Gentle ease only at start/end edges (5% each), linear in the middle
-		const edge = 0.05;
-		if (raw < edge) {
-			const local = raw / edge;
-			return interpolate(local, [0, 1], [0, edge], {
-				easing: Easing.in(Easing.ease),
-				extrapolateLeft: 'clamp',
-				extrapolateRight: 'clamp',
-			});
-		}
-		if (raw > 1 - edge) {
-			const local = (raw - (1 - edge)) / edge;
-			return interpolate(local, [0, 1], [1 - edge, 1], {
-				easing: Easing.out(Easing.ease),
-				extrapolateLeft: 'clamp',
-				extrapolateRight: 'clamp',
-			});
-		}
-		return raw;
+		// Smoother easing for more natural pen movement
+		// Use smooth bezier curve for continuous, fluid drawing motion
+		return interpolate(raw, [0, 1], [0, 1], {
+			easing: Easing.bezier(0.25, 0.1, 0.25, 1), // Smooth, natural pen movement
+			extrapolateLeft: 'clamp',
+			extrapolateRight: 'clamp',
+		});
 	};
 
 	// Camera zoom during hold phase

@@ -126,7 +126,7 @@ router.post('/generate-video', async (req: Request, res: Response) => {
 						? `\n\nVoiceover context (add text labels in the diagram that support this narration): "${voiceoverScript}"\n- Include key terms, labels, and short phrases from the voiceover in the diagram\n- Make text labels visible and readable to support the narration`
 						: '';
 					
-					const enhancedPrompt = `Create an EDUCATIONAL whiteboard diagram in EXACT 16:9 aspect ratio (1920x1080 pixels) that clearly explains the topic.
+					const enhancedPrompt = `Create an EDUCATIONAL whiteboard diagram that clearly explains the topic.
 
 CONTENT REQUIREMENTS:
 - The diagram MUST be directly related to and explain the topic: "${topic}"
@@ -148,7 +148,7 @@ STYLE REQUIREMENTS:
 DIAGRAM DESCRIPTION:
 ${frame.prompt_for_image}${voiceoverContext}
 
-IMPORTANT: Create a diagram that is educational, relevant, and directly explains the topic. Avoid generic or abstract imagery. Focus on creating a clear, informative visual explanation.`;
+CRITICAL: Do NOT include any text about resolution, aspect ratio, dimensions, or technical specifications in the image. The image should contain ONLY the educational diagram content - no metadata, no technical details, no resolution information.`;
 					// Add delay between API calls to prevent rate limiting (503 errors)
 					// Longer delay for later frames to avoid overwhelming the API
 					const baseDelay = 3000; // 3 seconds base delay

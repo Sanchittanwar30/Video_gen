@@ -67,6 +67,10 @@ EXAMPLE of good prompt_for_image:
 
 IMPORTANT: Each prompt_for_image must be specific to the topic and create a meaningful educational diagram. Avoid generic descriptions. Focus on creating diagrams that clearly explain the concept being taught.
 
+CRITICAL: The prompt_for_image should describe what to DRAW, not what to LABEL. Do NOT include any text in the prompt that suggests adding labels like "visual_aid", "visual aid", "diagram", "chart", or any descriptive text about what the image is. Only describe the actual educational content to be drawn.
+
+🚫 FORBIDDEN IN PROMPTS: Never include "visual_aid", "visual aid", or any descriptive labels in the prompt_for_image. The prompt should only describe the educational content to draw, not labels about what the image is.
+
 Focus on visual storytelling through DIAGRAMS, FIGURES, and SHAPES. Generate 1-5 figure-focused whiteboard diagram frames with minimal text that explain the topic visually. Generate the appropriate number of frames based on topic complexity - simple topics may need 1-2 frames, complex topics may need up to 5 frames.
 The JSON must be valid. No prose or markdown.`;
 

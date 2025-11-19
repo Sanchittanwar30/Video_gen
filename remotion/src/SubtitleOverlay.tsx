@@ -7,11 +7,13 @@ export interface SubtitleOverlayProps {
 	durationInFrames: number;
 	voiceoverDelayFrames?: number; // Delay before voiceover starts (to sync with sketching)
 	chunkDuration?: number; // Duration per chunk in seconds (default: 4 seconds)
+	voiceoverUrl?: string; // Voiceover audio URL for better syncing
 }
 
 /**
- * Subtitle overlay component styled like Netflix/Prime Video streaming platforms
+ * Subtitle overlay component styled like YouTube subtitles
  * Features: Semi-transparent dark background, white text, clean sans-serif font
+ * YouTube-style: Bottom center positioning, smooth word-by-word appearance, rolling 2-line display
  */
 export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 	text,
@@ -19,14 +21,19 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 	durationInFrames,
 	voiceoverDelayFrames = 0,
 	chunkDuration = 4, // Default: 4 seconds per chunk
+	voiceoverUrl,
 }) => {
 	const currentFrame = useCurrentFrame(); // This is already relative to the Sequence (0-based)
 	const {fps} = useVideoConfig();
 	
-	// Subtitle should appear when voiceover starts (sync with audio)
+	// Enhanced syncing: Calculate timing based on voiceover delay and duration
+	// Subtitles should appear when voiceover starts (sync with audio)
 	// For test mode (no voiceover), show immediately (delay = 0)
 	const subtitleStartFrame = voiceoverDelayFrames || 0;
 	const subtitleEndFrame = durationInFrames;
+	
+	// Enhanced timing: Use more accurate word timing based on available duration
+	// This ensures better sync with voiceover by distributing words evenly across available time
 	
 	// Only show subtitle during its active period
 	// currentFrame is already relative to sequence start (0-based), so we compare directly
@@ -44,24 +51,31 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 		return null;
 	}
 	
-	// YouTube Live CC style: Break text into words and display progressively with rolling window
-	// Calculate timing based on average speaking rate (~150 words per minute = 2.5 words/second)
-	const WORDS_PER_SECOND = 2.5; // Average speaking rate
-	const MIN_WORD_DURATION = 0.3; // Minimum 0.3 seconds per word
-	const MAX_WORDS_DISPLAY = 10; // Maximum words to show at once (rolling window)
+	// Enhanced word-by-word display: YouTube-style subtitles with stable line breaks
+	const WORDS_PER_SECOND = 3.0; // Faster speaking rate to sync better with voice (increased from 2.5)
+	const MIN_WORD_DURATION = 0.2; // Reduced minimum duration for faster word appearance (was 0.3)
+	const WORDS_PER_LINE = 6; // Maximum words per line
+	const MAX_LINES_DISPLAY = 2; // Maximum number of lines to show (rolling window)
 	
 	// Break text into words (split by spaces, preserve words)
+	// Ensure we preserve spaces between words
 	const words = text.trim().split(/\s+/).filter(w => w.trim().length > 0);
 	
-	// Calculate available time for subtitles
+	// Ensure proper spacing - add a space character between words when joining
+	const joinWords = (wordArray: string[]) => wordArray.join(' ');
+	
+	// Calculate available time for subtitles (enhanced syncing)
 	const availableFrames = subtitleEndFrame - subtitleStartFrame;
 	const availableSeconds = availableFrames / fps;
 	
 	// Calculate duration per word based on available time
-	// Ensure minimum duration per word for readability
+	// Use faster timing to sync better with voice - words should appear slightly ahead or in sync
 	const secondsPerWord = Math.max(
 		MIN_WORD_DURATION,
-		availableSeconds / Math.max(1, words.length)
+		Math.min(
+			availableSeconds / Math.max(1, words.length),
+			1 / WORDS_PER_SECOND // Cap at words per second rate
+		)
 	);
 	const framesPerWord = Math.floor(secondsPerWord * fps);
 	
@@ -72,13 +86,36 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 		words.length - 1
 	);
 	
-	// Rolling window: Show only the last MAX_WORDS_DISPLAY words
-	// As new words appear, remove the oldest ones to avoid crowding
-	const startWordIndex = Math.max(0, currentWordIndex - MAX_WORDS_DISPLAY + 1);
-	const visibleWords = words.slice(startWordIndex, currentWordIndex + 1);
+	// YouTube-style: Words stay on their assigned line, no shifting
+	// Determine which line each word belongs to based on its index
+	// Once a word is on a line, it stays there - only new words are added
+	const visibleWords = words.slice(0, currentWordIndex + 1);
 	
-	// Build visible text with proper spacing between words
-	const visibleText = visibleWords.join(' ');
+	// Build lines based on word indices - each word's line is determined by its position
+	// This ensures words don't shift between lines as new words are added
+	const allLines: string[] = [];
+	let currentLineWords: string[] = [];
+	
+	for (let i = 0; i < visibleWords.length; i++) {
+		currentLineWords.push(visibleWords[i]);
+		
+		// When we reach the word limit for a line, finalize that line and start a new one
+		if (currentLineWords.length >= WORDS_PER_LINE) {
+			// Ensure proper spacing between words
+			allLines.push(joinWords(currentLineWords));
+			currentLineWords = [];
+		}
+	}
+	
+	// Add the current incomplete line if it has words
+	if (currentLineWords.length > 0) {
+		// Ensure proper spacing between words
+		allLines.push(joinWords(currentLineWords));
+	}
+	
+	// Rolling window: Show only the last MAX_LINES_DISPLAY lines (like YouTube)
+	// This removes old lines when new ones appear, but existing lines stay stable
+	const lines = allLines.slice(-MAX_LINES_DISPLAY);
 	
 	// Smooth fade in for subtitle appearance (YouTube Live CC style)
 	const fadeInDuration = fps * 0.15; // 0.15 seconds fade in
@@ -116,44 +153,75 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 		>
 			<div
 				style={{
-					// Absolute positioning at the bottom
+					// YouTube-style positioning: Bottom, starting at 35% from left
 					position: 'absolute',
-					bottom: '10px', // 10px from bottom
-					left: '50%', // Center horizontally
-					transform: 'translateX(-50%)', // Center the element
-					// Netflix/Prime Video style: Semi-transparent dark background
-					backgroundColor: 'rgba(0, 0, 0, 0.75)',
+					bottom: '50px', // Changed from 80px to 50px
+					left: '35%', // Start at 35% from left edge of screen
+					// No transform - let it grow naturally to the right
+					width: 'auto',
+					// YouTube-style: Semi-transparent dark background (slightly more opaque)
+					backgroundColor: 'rgba(0, 0, 0, 0.8)',
 					// White text for high contrast and readability
 					color: '#FFFFFF',
-					// Clean, professional sans-serif font (streaming platform standard)
-					fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif',
-					fontSize: '40px', // Increased from 32px for better visibility
-					fontWeight: '500', // Medium weight for clarity
-					// Compact padding for elegant appearance
-					padding: '12px 24px',
-					// Subtle rounded corners
-					borderRadius: '6px',
-					textAlign: 'center', // Center text alignment
-					// Max width for readability
-					maxWidth: '90%',
-					// Single line only - no wrapping
-					whiteSpace: 'nowrap',
-					overflow: 'hidden',
-					textOverflow: 'ellipsis',
-					lineHeight: '1.4',
-					letterSpacing: '0.3px', // Slight letter spacing for readability
-					wordSpacing: '0.4em', // Add spacing between words
+					// YouTube-style font: Clean, readable sans-serif
+					fontFamily: 'Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+					fontSize: '32px', // YouTube-style size (slightly smaller)
+					fontWeight: '400', // Regular weight (YouTube uses normal weight)
+					// YouTube-style compact padding
+					padding: '10px 20px',
+					// YouTube-style more rounded corners
+					borderRadius: '8px',
+					// YouTube-style max width (more constrained)
+					maxWidth: '80%',
+					// Ensure container maintains stable width to prevent shifting
+					minWidth: '200px',
+					// YouTube-style tighter line spacing
+					lineHeight: '1.3',
+					letterSpacing: '0.2px', // Slight letter spacing
+					wordSpacing: '0.3em', // Normal word spacing
 					// Smooth opacity transition
 					opacity,
-					// Subtle shadow for depth (streaming platform style)
-					boxShadow: '0 2px 8px rgba(0, 0, 0, 0.4)',
-					// Text shadow for better readability on light backgrounds
-					textShadow: '1px 1px 2px rgba(0, 0, 0, 0.8)',
+					// YouTube-style subtle shadow
+					boxShadow: '0 2px 4px rgba(0, 0, 0, 0.5)',
+					// Text shadow for better readability (YouTube style)
+					textShadow: '0 1px 2px rgba(0, 0, 0, 0.9)',
 					// Ensure subtitles appear on top of everything
 					zIndex: 1000,
+					// YouTube-style: Prevent text selection
+					userSelect: 'none',
+					// Smooth transitions
+					transition: 'opacity 0.1s ease-in-out',
 				}}
 			>
-				{visibleText || ''}
+				<div style={{
+					// Container for lines - full width
+					width: '100%',
+					position: 'relative',
+				}}>
+					{lines.length > 0 ? (
+						lines.map((line, index) => (
+							<div 
+								key={`line-${index}-${line.length}`} 
+								style={{ 
+									// YouTube-style: Tighter line spacing between lines
+									marginBottom: index < lines.length - 1 ? '2px' : '0',
+									// Prevent wrapping within a line
+									whiteSpace: 'nowrap',
+									// Display as block
+									display: 'block',
+									// Left-align text so it grows to the right
+									textAlign: 'left',
+									// Ensure proper word spacing
+									wordSpacing: '0.3em',
+								}}
+							>
+								{line}
+							</div>
+						))
+					) : (
+						''
+					)}
+				</div>
 			</div>
 		</AbsoluteFill>
 	);

@@ -114,8 +114,15 @@ router.post('/generate-video', async (req: Request, res: Response) => {
 					console.log(`[Generate Video] Using fixed test image ${imageIndex + 1}/${fixedTestImages.length}: ${staticImageUrl}`);
 				} else {
 					// Generate voiceover script FIRST to inform image generation with supporting text
+					// Pass the prompt_for_image as image description to make script more specific about visual elements
 					try {
-						voiceoverScript = await generateVoiceoverScript(frame, topic, index, sketchOnlyFrames.length);
+						voiceoverScript = await generateVoiceoverScript(
+							frame, 
+							topic, 
+							index, 
+							sketchOnlyFrames.length,
+							frame.prompt_for_image // Pass the image prompt as description for better sync
+						);
 						// Voiceover script generated
 					} catch (error: any) {
 						console.warn(`[Generate Video] Voiceover generation failed, continuing without it:`, error.message);
@@ -126,29 +133,171 @@ router.post('/generate-video', async (req: Request, res: Response) => {
 						? `\n\nVoiceover context (add text labels in the diagram that support this narration): "${voiceoverScript}"\n- Include key terms, labels, and short phrases from the voiceover in the diagram\n- Make text labels visible and readable to support the narration`
 						: '';
 					
-					const enhancedPrompt = `Create an EDUCATIONAL whiteboard diagram that clearly explains the topic.
+					// Sanitize the prompt_for_image to remove any "visual_aid", metadata, Mermaid syntax, or similar forbidden terms
+					const sanitizedImagePrompt = (frame.prompt_for_image || '')
+						.replace(/visual_aid/gi, '')
+						.replace(/visual aid/gi, '')
+						.replace(/visualaid/gi, '')
+						// Remove specific metadata patterns (whiteboard_drawing, Type:, etc.)
+						.replace(/whiteboard_drawing[:\s]*\w*/gi, '')
+						.replace(/whiteboard\s*drawing[:\s]*\w*/gi, '')
+						.replace(/\bType\s*:\s*\w+/gi, '') // "Type:" as a word boundary
+						.replace(/\btype\s*:\s*\w+/gi, '')
+						.replace(/\bTYPE\s*:\s*\w+/gi, '')
+						.replace(/\bStyle\s*:\s*\w+/gi, '') // "Style:" labels
+						.replace(/\bCategory\s*:\s*\w+/gi, '') // "Category:" labels
+						.replace(/hand_blacker/gi, '')
+						.replace(/hand\s*blacker/gi, '')
+						.replace(/mazeboard/gi, '')
+						.replace(/maze\s*board/gi, '')
+						// Remove metadata patterns with underscores and colons (more specific)
+						.replace(/\w+_\w+\s*:\s*\w+/g, '') // "key_key:value" patterns
+						.replace(/\b(whiteboard|drawing|style|type|category)\s*:\s*\w+/gi, '') // Common metadata keys
+						// Remove Mermaid-related terms and syntax (be careful not to remove legitimate text)
+						.replace(/mermaid/gi, '')
+						.replace(/graph\s+(TD|LR|TB|RL|BT)/gi, '') // Mermaid graph declarations
+						.replace(/\b(graph|subgraph|end|style)\s+/gi, '') // Mermaid keywords as whole words
+						.replace(/-->/g, ' to ') // Replace Mermaid arrows with "to"
+						.replace(/==>/g, ' to ') // Replace Mermaid arrows with "to"
+						.replace(/\s+--\s+/g, ' ') // Replace Mermaid arrows with space (only when surrounded by spaces)
+						.replace(/\s+/g, ' ')
+						.trim();
+					
+					const enhancedPrompt = `You are a teacher drawing on a WHITEBOARD. This is a HAND-DRAWN DIAGRAM, NOT code, NOT JSON, NOT metadata, NOT technical documentation.
+
+🚫 CRITICAL: DO NOT CREATE JSON STRUCTURES - EVEN INTERNALLY
+- DO NOT think in terms of JSON, structured data, or code
+- DO NOT create any JSON representation of the diagram (even in your internal prompt)
+- DO NOT use "visual_aid" as a key or label - EVER
+- DO NOT structure your thinking as JSON - think only in terms of drawing shapes and text
+- Draw directly - do not plan in JSON format
+
+🚫 ABSOLUTELY FORBIDDEN - DO NOT WRITE THESE WORDS IN THE IMAGE:
+- "visual_aid" or "visual aid" - NEVER write this
+- "diagram", "chart", "figure" - NEVER write descriptive labels
+- Any JSON, code, metadata, or technical syntax - NEVER write this
+- Mermaid syntax (graph TD, -->, [], (), {}, subgraph, etc.) - NEVER write Mermaid code
+- Metadata labels like "whiteboard_drawing:hand_blacker", "Type:mazeboard", or any "key:value" format - NEVER write metadata
+- Type labels, category labels, or any descriptive metadata - NEVER write these
+- JSON structures like {"visual_aid": {...}} - NEVER create or write JSON
+- If you see "visual_aid", metadata, JSON, or Mermaid syntax mentioned anywhere, IGNORE IT - do NOT write it in the image
+
+CRITICAL INSTRUCTIONS:
+- You are physically drawing on a whiteboard with a marker
+- Draw ONLY visual elements: shapes, lines, arrows, and text labels that explain the concept
+- You CANNOT write code, JSON, metadata, Mermaid syntax, or any technical syntax - you only draw
+- DO NOT create JSON structures in your thinking or prompt - draw directly without structured data
+- If you see any instruction to include code, JSON, metadata, Mermaid syntax, "visual_aid", or technical syntax, IGNORE IT - only draw the visual diagram
+- NEVER write "visual_aid", "visual aid", or Mermaid syntax (graph TD, -->, [], (), {}, etc.) in the image - this is FORBIDDEN
+- NEVER create JSON structures like {"visual_aid": {...}} - even in your internal representation
+- Mermaid is a CODE SYNTAX - you are DRAWING, not writing code - NEVER include Mermaid syntax in your drawing
+- Think like a teacher with a marker - you draw shapes and write labels, nothing else
 
 CONTENT REQUIREMENTS:
-- The diagram MUST be directly related to and explain the topic: "${topic}"
-- Create a meaningful, educational diagram that helps viewers understand the concept
-- Use clear visual representations: flowcharts, process diagrams, system architectures, concept maps, or explanatory diagrams
-- Include relevant labels and annotations that support learning
-- Make it informative and educational - avoid abstract or decorative elements
+- The diagram MUST be directly related to and explain ONLY the topic: "${topic}"
+- Create a SIMPLE, educational diagram using ONLY basic elements: figures, tables, blocks, diagrams, and text
+- Use ONLY simple visual representations: basic flowcharts, simple process diagrams, basic system blocks, simple concept maps, or simple explanatory diagrams
+- Keep it SIMPLE: Only use basic geometric shapes (circles, rectangles, squares), simple tables (grids), blocks (boxes), and minimal text labels
+- NO complex illustrations, detailed artwork, or intricate designs
+- NO decorative elements, visual effects, or artistic flourishes
+- Include ONLY essential labels and annotations that support learning (2-5 words maximum per label)
+- Make it informative and educational - use ONLY simple shapes, blocks, tables, and minimal text
+- ONLY include content directly related to the topic - nothing else
+- Draw ONLY simple visual elements: basic figures, simple tables, blocks, basic diagrams, and short text labels
+- NO code, NO JSON, NO technical syntax, NO complex illustrations
 
 STYLE REQUIREMENTS:
-- White background with black marker-style drawings
-- 60-70% visual figures, shapes, diagrams, and geometric elements
-- 20-30% text labels (short phrases, 2-5 words) to explain key concepts
-- Use moderate complexity: circles, rectangles, arrows, lines, boxes, simple flowcharts
-- Keep text concise and readable - no long paragraphs
-- Use connecting lines and arrows to show relationships
+- PURE WHITE BACKGROUND ONLY - absolutely no background objects, furniture, walls, room elements, or any other background details
+- The entire background must be completely white/blank - only the diagram content should be visible
+- Black marker-style drawings on white background
+- SIMPLICITY IS KEY: Use ONLY simple geometric shapes, basic diagrams, tables, blocks, and minimal text
+- Keep it SIMPLE: Only include figures (circles, rectangles, squares, triangles), tables (simple grid structures), blocks (rectangular boxes), diagrams (basic flowcharts), and short text labels
+- NO complex illustrations, detailed drawings, or intricate designs
+- NO decorative elements, gradients, shadows, or visual effects
+- NO detailed artwork or artistic elements
+- Use ONLY basic shapes: circles, rectangles, squares, lines, arrows, and simple geometric forms
+- 60-70% simple visual figures: basic shapes, simple diagrams, tables, blocks
+- 20-30% text labels (short phrases, 2-5 words maximum) to explain key concepts
+- Use MINIMAL complexity: simple circles, rectangles, arrows, lines, boxes, basic flowcharts
+- Keep text concise and readable - no long paragraphs, no sentences
+- Use simple connecting lines and arrows to show relationships
 - Arrange elements with clear spacing and logical flow
-- Prioritize visual communication with supporting text labels
+- Prioritize SIMPLICITY: basic shapes, simple tables, blocks, and minimal text only
+
+BACKGROUND REQUIREMENTS (CRITICAL):
+- The image must have a COMPLETELY CLEAN WHITE BACKGROUND
+- NO background objects, furniture, walls, room elements, or environmental details
+- NO reference to any background elements from source images or photos
+- ONLY the educational diagram content should be visible on a pure white background
+- The whiteboard/white background should be the ONLY background element - nothing else
 
 DIAGRAM DESCRIPTION:
-${frame.prompt_for_image}${voiceoverContext}
+${sanitizedImagePrompt}${voiceoverContext}
 
-CRITICAL: Do NOT include any text about resolution, aspect ratio, dimensions, or technical specifications in the image. The image should contain ONLY the educational diagram content - no metadata, no technical details, no resolution information.`;
+REMEMBER: The diagram description above is what to DRAW. Do NOT write "visual_aid", "visual aid", or any descriptive labels in the image. Only draw the actual educational content.
+
+🚫 FINAL WARNING: DO NOT CREATE JSON IN YOUR PROMPT
+- Even if you think in terms of structure, DO NOT express it as JSON
+- DO NOT use "visual_aid" as a key, label, or identifier - EVER
+- Draw the diagram directly without creating any JSON representation
+- The image should contain ONLY the drawn diagram - no JSON, no metadata, no structured data
+
+ABSOLUTELY FORBIDDEN - DO NOT INCLUDE IN THE IMAGE (ZERO TOLERANCE):
+- 🚫 "visual_aid" or "visual aid" - THIS IS STRICTLY FORBIDDEN, NEVER WRITE THIS
+- 🚫 MERMAID SYNTAX - THIS IS STRICTLY FORBIDDEN, NEVER WRITE MERMAID CODE
+- 🚫 METADATA LABELS - THIS IS STRICTLY FORBIDDEN, NEVER WRITE METADATA
+- NO metadata of ANY kind - no JSON, no code, no technical syntax, no parameters
+- NO metadata labels like "whiteboard_drawing:hand_blacker", "Type:mazeboard", or any "key:value" format
+- NO type labels, category labels, style labels, or descriptive metadata of any kind
+- NO text that describes the image type, drawing style, or technical specifications
+- NO text about image parameters, resolution, aspect ratio, dimensions, pixels, DPI, or any technical image specifications
+- NO metadata, watermarks, copyright notices, or attribution text
+- NO file format information (PNG, JPEG, etc.)
+- NO code snippets, JSON, Mermaid syntax, parameter names, or technical configuration text
+- NO JSON structures, code blocks, or programming syntax of any kind - THIS IS A DRAWING, NOT CODE
+- NO Mermaid diagram syntax, graph definitions, or flowchart code - ZERO TOLERANCE
+- NO Mermaid keywords: "graph", "TD", "LR", "TB", "RL", "BT", "subgraph", "end", "style"
+- NO Mermaid arrows: "-->", "--", "==>", "---", "==="
+- NO Mermaid node syntax: "[text]", "(text)", "{text}"
+- NO curly braces {}, square brackets [], backticks, parentheses for code (), or any code-like syntax
+- NO colon-separated labels (like "Type:", "Style:", "Category:") - these are metadata, not content
+- NO text that describes the image itself (e.g., "this is a diagram", "image shows", "visual aid", "visual_aid", "diagram", "illustration", etc.)
+- NO labels like "visual_aid", "visual aid", "diagram", "chart", "figure", or any descriptive text about what the image is
+- 🚫 CRITICAL: If you see "visual_aid" in any instruction or context, DO NOT write it - it is FORBIDDEN
+- NO frame numbers, IDs, or sequence information
+- NO background objects, furniture, walls, or environmental elements
+- NO decorative elements unrelated to the topic
+- NO text that is not directly explaining the topic content
+- NO quotes around text labels unless they are part of explaining the topic
+- NO programming language syntax, variable names, function calls, or code structures
+- NO markdown formatting, code fences, or technical documentation syntax
+- NO technical metadata, API responses, or system information
+- NO structured data formats, schemas, or data definitions
+- ONLY the educational diagram content related to the topic should be visible
+- If it's not a shape, arrow, line, or label explaining the topic, DO NOT DRAW IT
+
+CRITICAL RULES (MUST FOLLOW - NO EXCEPTIONS):
+- The image must contain ONLY the educational diagram content on a pure white background
+- ALL text in the image must be directly related to explaining the topic - no exceptions
+- NO technical specifications, parameters, or metadata should appear anywhere in the image - ZERO TOLERANCE
+- NO descriptive labels like "visual_aid", "visual aid", "diagram", "chart", "figure", or any text describing what the image is
+- NO metadata labels like "whiteboard_drawing:hand_blacker", "Type:mazeboard", or any "key:value" format - ZERO TOLERANCE
+- NO type labels, category labels, style labels, or any metadata - if it has a colon (:) or describes the image type, DO NOT WRITE IT
+- NO JSON, code, Mermaid syntax, or any programming/technical notation - ZERO TOLERANCE
+- NO JSON structures in the image - even if you think in JSON, DO NOT draw JSON syntax, curly braces, or structured data
+- NO Mermaid syntax of ANY kind - this includes: graph declarations, arrows (-->, --, ==>), node syntax ([], (), {}), keywords (subgraph, end, style), or any Mermaid code
+- NO metadata, structured data, or technical information of ANY kind
+- The image should look like a clean whiteboard drawing with only topic-related educational content
+- Draw ONLY the visual elements (shapes, arrows, labels explaining the concept) - nothing else
+- If you see any text that is not part of explaining the topic concept itself, DO NOT include it in the image
+- The image is a HAND-DRAWN WHITEBOARD DRAWING, not a code representation, not JSON, not Mermaid syntax, not technical documentation, not metadata
+- Think of yourself as a teacher drawing on a whiteboard - you draw shapes, arrows, and write labels, but you NEVER write code, JSON, Mermaid syntax, metadata labels, type labels, or any technical syntax
+- DO NOT create JSON structures like {"visual_aid": {...}} in your thinking or in the image - draw directly without structured data
+- Mermaid is CODE - you are DRAWING, not writing code - if you see Mermaid syntax anywhere, IGNORE IT completely
+- Metadata labels (like "Type:", "whiteboard_drawing:", etc.) are FORBIDDEN - you are DRAWING, not labeling the image type
+- When in doubt, ask: "Would a teacher write this on a whiteboard?" If it's code/JSON/Mermaid/metadata/type labels/technical syntax, the answer is NO - do not include it
+- REMEMBER: You are DRAWING, not coding, not writing JSON, not writing Mermaid, not creating metadata, not labeling image types - ONLY DRAWING VISUAL ELEMENTS
+- FINAL CHECK: Before generating the image, verify: Does it contain "visual_aid", JSON, metadata, or Mermaid? If YES, remove it completely`;
 					// Add delay between API calls to prevent rate limiting (503 errors)
 					// Longer delay for later frames to avoid overwhelming the API
 					const baseDelay = 3000; // 3 seconds base delay
@@ -187,9 +336,20 @@ CRITICAL: Do NOT include any text about resolution, aspect ratio, dimensions, or
 				
 				try {
 					// Use the already-generated voiceover script, or regenerate if it failed (skip in fixed test mode)
+					// Optionally refine script after image generation for better sync (using the prompt as reference)
 					if (!useFixedTestImage && !voiceoverScript) {
-						voiceoverScript = await generateVoiceoverScript(frame, topic, index, sketchOnlyFrames.length);
+						voiceoverScript = await generateVoiceoverScript(
+							frame, 
+							topic, 
+							index, 
+							sketchOnlyFrames.length,
+							frame.prompt_for_image // Use prompt as image description for better sync
+						);
 						console.log(`[Generate Video] Voiceover script generated for frame ${frame.id}: ${voiceoverScript.substring(0, 100)}...`);
+					} else if (!useFixedTestImage && voiceoverScript && staticImageUrl) {
+						// Optionally refine the script after image is generated to ensure better sync
+						// For now, we keep the initial script, but this is where we could add image analysis
+						console.log(`[Generate Video] Voiceover script already generated for frame ${frame.id}, using initial script`);
 					}
 					
 					// Always set voiceoverScript on frameWithAssets if we have it (for subtitles)
@@ -419,21 +579,34 @@ async function generateVoiceoverScript(
 	frame: any,
 	topic: string,
 	frameIndex: number,
-	totalFrames: number
+	totalFrames: number,
+	imageDescription?: string
 ): Promise<string> {
 	const context = frame.heading || frame.text || frame.prompt_for_image || '';
+	const diagramDescription = imageDescription || frame.prompt_for_image || context;
 	
 	const prompt = `Generate a concise, educational voiceover script (2-3 sentences, 10-15 seconds when spoken) for a whiteboard diagram frame in a video about "${topic}".
 
 Frame context: ${context}
 Frame position: ${frameIndex + 1} of ${totalFrames}
+Diagram description: ${diagramDescription}
+
+IMPORTANT: The diagram will contain specific visual elements. Your script MUST reference these actual visual elements that will be shown:
+- If the diagram mentions shapes (circles, boxes, rectangles), reference them: "these circles", "this box", "notice the rectangles"
+- If there are arrows or connections, mention them: "this arrow shows", "these lines connect", "follow the flow"
+- If there are labels or text, reference them: "as labeled here", "this text indicates", "notice the label"
+- If there are processes or steps, describe them visually: "step one is shown here", "this process flows from", "we can see how"
+- Be specific about spatial relationships: "on the left", "at the top", "in the center", "below this"
 
 Requirements:
 - Clear, engaging, educational tone
 - Natural speaking pace
-- Explain what the diagram shows
-- Connect to the overall topic
+- Describe SPECIFIC visual elements that will be shown in the diagram (shapes, arrows, connections, labels, etc.)
+- Reference specific components, relationships, or processes that are visible
+- Be precise about what the viewer is seeing - use phrases like "this arrow shows", "these boxes represent", "notice how these circles connect", "as we can see in this diagram"
+- Connect the visual elements to the overall topic
 - Professional and friendly
+- The script must match what is actually visible in the diagram - be specific about visual details
 
 Output ONLY the voiceover script text, no labels or formatting.`;
 

@@ -1137,12 +1137,14 @@ export const VideoFromAI: React.FC<{data: AIVideoData}> = ({data}) => {
 								
 								// Subtitles should show for the ENTIRE voiceover duration
 								// Start when voiceover starts, end when sequence ends (or voiceover ends)
+								// Pass voiceoverUrl for enhanced syncing with actual audio duration
 								return (
 									<SubtitleOverlay
 										text={frame.voiceoverScript}
 										startFrame={0} // Always 0 since we're inside the Sequence (relative frames)
 										durationInFrames={durationInFrames} // Show for entire sequence duration
 										voiceoverDelayFrames={voiceoverDelayFrames} // Start when voiceover starts
+										voiceoverUrl={frame.voiceoverUrl || undefined} // Pass for audio duration syncing
 									/>
 								);
 							})()

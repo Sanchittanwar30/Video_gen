@@ -1,103 +1,89 @@
-# Colab Setup Checklist
+# Pen Sketch Animation - Setup Checklist
 
-Follow this checklist to set up Colab step by step.
+Use this checklist to ensure everything is set up correctly.
 
 ## Prerequisites
 
-- [ ] Node.js installed (`node --version`)
-- [ ] npm installed (`npm --version`)
-- [ ] Project dependencies installed (`npm install`)
+- [ ] Node.js 20+ installed
+- [ ] Python 3.8+ installed
 - [ ] Google account (for Colab)
+- [ ] ngrok account (free tier)
+- [ ] Gemini API key
+- [ ] Deepgram API key
 
-## Step 1: Install ngrok
+## Step 1: Local Setup
 
-- [ ] **Windows:** `choco install ngrok` OR download from https://ngrok.com/download
-- [ ] **Mac:** `brew install ngrok`
-- [ ] **Linux:** Download and extract ngrok binary
-- [ ] Verify installation: `ngrok version`
+- [ ] Node.js dependencies installed (`npm install`)
+- [ ] `form-data` package installed
+- [ ] `.env` file created with required variables
+- [ ] Backend starts without errors (`npm run dev:api`)
 
-## Step 2: Configure ngrok
+## Step 2: ngrok Setup
 
-- [ ] Sign up at https://dashboard.ngrok.com/signup
-- [ ] Get auth token from https://dashboard.ngrok.com/get-started/your-authtoken
-- [ ] Run: `ngrok config add-authtoken YOUR_TOKEN`
-- [ ] Verify: `ngrok config check`
+- [ ] ngrok installed
+- [ ] ngrok auth token obtained
+- [ ] ngrok configured (`ngrok config add-authtoken`)
+- [ ] Local ngrok tunnel tested (`ngrok http 3000`)
 
-## Step 3: Start API Server
+## Step 3: Colab Setup
 
-- [ ] Open Terminal 1
-- [ ] Navigate to project: `cd C:\Users\Dell\Video_gen`
-- [ ] Start server: `npm run start:api`
-- [ ] Verify: See "🚀 Video Generation API server running on port 3000"
-- [ ] Test: Open http://localhost:3000/health in browser
+- [ ] Google Colab account ready
+- [ ] New notebook created
+- [ ] Files uploaded to Colab:
+  - [ ] `pen_sketch_animation.py`
+  - [ ] `fastapi_pen_sketch.py`
+  - [ ] `requirements-pen-sketch.txt`
+- [ ] Dependencies installed in Colab
+- [ ] ngrok configured in Colab
+- [ ] FastAPI server started in Colab
+- [ ] Colab ngrok URL copied
 
-## Step 4: Start ngrok Tunnel
+## Step 4: Configuration
 
-- [ ] Open Terminal 2 (keep Terminal 1 running)
-- [ ] Run: `ngrok http 3000`
-- [ ] Copy the Forwarding URL (e.g., `https://abc123.ngrok-free.app`)
-- [ ] Keep this terminal open!
+- [ ] `.env` file updated with `COLAB_FASTAPI_URL`
+- [ ] Backend restarted after `.env` update
+- [ ] Connection to Colab tested
 
-## Step 5: Test Connection
+## Step 5: Test Images
 
-- [ ] Open Terminal 3 (or use Terminal 2)
-- [ ] Run: `python colab/test-ngrok-connection.py YOUR_NGROK_URL`
-- [ ] Verify: See "✅ All tests passed!"
+- [ ] Test images generated (using main video generation)
+- [ ] Images visible in `public/assets/gemini-images/`
+- [ ] Images accessible via `/assets/gemini-images/` URL
 
-## Step 6: Set Up Colab Notebook
+## Step 6: Testing
 
-- [ ] Go to https://colab.research.google.com/
-- [ ] Sign in with Google account
-- [ ] Upload `colab/Video_Rendering_Colab.ipynb`
-- [ ] Find cell with `API_BASE_URL = "http://localhost:3000"`
-- [ ] Change to: `API_BASE_URL = "YOUR_NGROK_URL"`
+- [ ] Frontend accessible (http://localhost:5173)
+- [ ] Test UI shows available images
+- [ ] Can select images
+- [ ] Animation job created successfully
+- [ ] Job status updates correctly
+- [ ] Video generated and downloadable
+- [ ] Video plays correctly
 
-## Step 7: Run Colab Setup
+## Step 7: Verification
 
-- [ ] Run cell: "Install Dependencies" (Node.js, FFmpeg, Chromium)
-- [ ] Run cell: "Upload Project Files" (upload project ZIP or use git clone)
-- [ ] Run cell: "Install Project Dependencies" (`npm install`)
-- [ ] Run cell: "Configure Environment" (sets environment variables)
-- [ ] Verify: No errors in output
+- [ ] All services running:
+  - [ ] Node.js backend (port 3000)
+  - [ ] Colab FastAPI (port 8000)
+  - [ ] Local ngrok tunnel
+  - [ ] Colab ngrok tunnel
+- [ ] Health checks pass:
+  - [ ] `http://localhost:3000/health`
+  - [ ] `https://your-colab-url.ngrok-free.app/health`
+- [ ] Test animation completes successfully
 
-## Step 8: Test Complete Flow
-
-- [ ] Create test job:
-  ```bash
-  curl -X POST http://localhost:3000/api/colab/generate \
-    -H "Content-Type: application/json" \
-    -d '{"videoPlan":{"frames":[{"id":"test","type":"whiteboard_diagram","duration":5,"text":"Test","animate":false}]}}'
-  ```
-- [ ] Copy the `jobId` from response
-- [ ] In Colab: Run "Render Video" cell
-- [ ] Verify: Colab picks up the job and processes it
-- [ ] Check status:
-  ```bash
-  curl http://localhost:3000/api/colab/status/{jobId}
-  ```
-- [ ] Verify: Status changes to "completed"
-
-## ✅ Setup Complete!
-
-Your Colab integration is ready. You can now:
-- Create jobs via API
-- Colab automatically processes them
-- Download completed videos
-
-## Troubleshooting
+## Troubleshooting Checklist
 
 If something doesn't work:
 
-- [ ] Check API server is running (Terminal 1)
-- [ ] Check ngrok is running (Terminal 2)
-- [ ] Verify ngrok URL matches Colab `API_BASE_URL`
-- [ ] Test connection: `python colab/test-ngrok-connection.py YOUR_URL`
-- [ ] Check Colab logs for errors
-- [ ] See [SETUP_GUIDE.md](./SETUP_GUIDE.md) for detailed troubleshooting
+- [ ] Check all terminal windows are open
+- [ ] Verify ngrok tunnels are active
+- [ ] Check Colab cell is still running
+- [ ] Verify `.env` file has correct URLs
+- [ ] Check API keys are valid
+- [ ] Review error messages in console
+- [ ] Check Colab runtime hasn't disconnected
 
-## Next Steps
+## ✅ Setup Complete!
 
-- [ ] Read [API_USAGE.md](./API_USAGE.md) for API documentation
-- [ ] Read [ngrok-setup.md](./ngrok-setup.md) for ngrok details
-- [ ] Create real video jobs with your video plans
-
+Once all items are checked, your pen-sketch animation system is ready to use!

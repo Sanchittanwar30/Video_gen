@@ -11,13 +11,16 @@ import {
 	interpolate,
 	staticFile,
 } from 'remotion';
+import {loadFont} from '@remotion/google-fonts/Kalam';
 import { WhiteboardAnimatorPrecise } from '../../src/WhiteboardAnimatorPrecise';
+import { SubtitleOverlay } from './SubtitleOverlay';
 
 export interface AIVideoFrame {
 	id: string;
 	type: 'whiteboard_diagram' | 'text_slide' | 'bullet_slide' | 'motion_scene';
 	heading?: string;
 	text?: string;
+	// Optional: authoring-time raw texts; we will auto-truncate for readability
 	bullets?: string[];
 	duration?: number;
 	asset?: string;
@@ -27,6 +30,14 @@ export interface AIVideoFrame {
 		width: number;
 		height: number;
 	};
+	// Optional: multiple vectorized items to compose a grid/montage
+	vectorizedList?: Array<{
+		svgUrl: string;
+		width: number;
+		height: number;
+	}>;
+	// Optional: multiple image assets for montage
+	assetsList?: string[];
 	voiceoverUrl?: string;
 	voiceoverScript?: string;
 	svgString?: string; // Pre-loaded SVG string content (loaded before render)
@@ -35,15 +46,29 @@ export interface AIVideoFrame {
 export interface AIVideoData {
 	title: string;
 	frames: AIVideoFrame[];
+	backgroundMusic?: string; // Optional background music URL or path
 }
+
+// Reduce text length for better readability in teaching flow
+const truncateForDisplay = (value: string | undefined, maxChars: number): string | undefined => {
+	if (!value) return value;
+	const trimmed = value.trim();
+	if (trimmed.length <= maxChars) return trimmed;
+	// Try to cut at a word boundary
+	const slice = trimmed.slice(0, maxChars);
+	const lastSpace = slice.lastIndexOf(' ');
+	const cut = lastSpace > 40 ? slice.slice(0, lastSpace) : slice;
+	return `${cut}…`;
+};
 
 export const calculatePlanDurationInFrames = (plan: AIVideoData, fps: number): number => {
 	const total = (plan.frames ?? []).reduce((sum, frame) => {
-		// Whiteboard diagrams get 18 seconds total: ~65% for sketching phase, ~35% for hold/zoom phase
-		// Other frames use their specified duration or default to 4 seconds
+		// Use frame.duration if specified (flexible timing based on content), otherwise use defaults
 		let seconds: number;
+		// Use frame.duration if specified (flexible timing based on content/voiceover), otherwise use minimal defaults
 		if (frame.type === 'whiteboard_diagram') {
-			seconds = 18; // 18 seconds: lengthy sketch phase (~11.7s) + hold/zoom phase (~6.3s)
+			// For whiteboard diagrams, use duration from voiceover/content, or minimum 6 seconds
+			seconds = typeof frame.duration === 'number' && frame.duration > 0 ? frame.duration : 6;
 		} else {
 			seconds = typeof frame.duration === 'number' && frame.duration > 0 ? frame.duration : 4;
 		}
@@ -62,6 +87,9 @@ const TextSlide: React.FC<{frame: AIVideoFrame; startFrame: number; durationInFr
 	startFrame,
 	durationInFrames,
 }) => {
+	// Load handwritten font for all text elements
+	loadFont();
+	
 	const currentFrame = useCurrentFrame();
 	const {fps} = useVideoConfig();
 	const progress = interpolate(
@@ -85,20 +113,51 @@ const TextSlide: React.FC<{frame: AIVideoFrame; startFrame: number; durationInFr
 				alignItems: 'center',
 				justifyContent: 'center',
 				padding: '120px',
-				background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+				background: '#ffffff',
 				color: '#0f172a',
 				opacity: progress,
 				transform: `translateY(${(1 - progress) * 35}px)`,
 			}}
 		>
 			{frame.heading ? (
-				<h1 style={{fontSize: 64, fontWeight: 700, marginBottom: 32, textAlign: 'center'}}>
-					{frame.heading}
+				<h1
+					style={{
+						fontSize: 72,
+						fontWeight: 400,
+						fontFamily: 'Kalam, "Caveat", "Dancing Script", "Indie Flower", "Shadows Into Light", cursive, sans-serif',
+						marginBottom: 28,
+						textAlign: 'center',
+						color: '#000',
+						letterSpacing: 0,
+						textRendering: 'geometricPrecision',
+						WebkitTextStroke: '0.3px #000',
+						textShadow: '0 0 1px #000, 0 0 0.5px #000',
+						WebkitFontSmoothing: 'antialiased',
+						MozOsxFontSmoothing: 'grayscale',
+					}}
+				>
+					{truncateForDisplay(frame.heading, 70)}
 				</h1>
 			) : null}
 			{frame.text ? (
-				<p style={{fontSize: 32, lineHeight: 1.5, maxWidth: 960, textAlign: 'center'}}>
-					{frame.text}
+				<p
+					style={{
+						fontSize: 40,
+						fontWeight: 400,
+						fontFamily: 'Kalam, "Caveat", "Dancing Script", "Indie Flower", "Shadows Into Light", cursive, sans-serif',
+						lineHeight: 1.35,
+						maxWidth: 900,
+						textAlign: 'center',
+						color: '#000',
+						letterSpacing: 0,
+						textRendering: 'geometricPrecision',
+						WebkitTextStroke: '0.25px #000',
+						textShadow: '0 0 1px #000, 0 0 0.5px #000',
+						WebkitFontSmoothing: 'antialiased',
+						MozOsxFontSmoothing: 'grayscale',
+					}}
+				>
+					{truncateForDisplay(frame.text, 140)}
 				</p>
 			) : null}
 		</div>
@@ -110,6 +169,9 @@ const BulletSlide: React.FC<{
 	startFrame: number;
 	durationInFrames: number;
 }> = ({frame, startFrame}) => {
+	// Load handwritten font for all text elements
+	loadFont();
+	
 	const currentFrame = useCurrentFrame();
 	const {fps} = useVideoConfig();
 
@@ -123,24 +185,39 @@ const BulletSlide: React.FC<{
 				alignItems: 'center',
 				justifyContent: 'center',
 				padding: '120px',
-				background: '#f9fafb',
+				background: '#ffffff',
 				color: '#0f172a',
 			}}
 		>
 			{frame.heading ? (
-				<h1 style={{fontSize: 60, fontWeight: 700, marginBottom: 36, textAlign: 'center'}}>
-					{frame.heading}
+				<h1
+					style={{
+						fontSize: 68,
+						fontWeight: 400,
+						fontFamily: 'Kalam, "Caveat", "Dancing Script", "Indie Flower", "Shadows Into Light", cursive, sans-serif',
+						marginBottom: 28,
+						textAlign: 'center',
+						color: '#000',
+						letterSpacing: 0,
+						textRendering: 'geometricPrecision',
+						WebkitTextStroke: '0.3px #000',
+						textShadow: '0 0 1px #000, 0 0 0.5px #000',
+						WebkitFontSmoothing: 'antialiased',
+						MozOsxFontSmoothing: 'grayscale',
+					}}
+				>
+					{truncateForDisplay(frame.heading, 70)}
 				</h1>
 			) : null}
 			<ul
 				style={{
 					listStyle: 'disc',
-					paddingLeft: 0,
+					paddingLeft: 24,
 					margin: 0,
 					display: 'flex',
 					flexDirection: 'column',
-					gap: 20,
-					maxWidth: 960,
+					gap: 18,
+					maxWidth: 900,
 				}}
 			>
 				{(frame.bullets ?? []).map((bullet, index) => {
@@ -154,13 +231,22 @@ const BulletSlide: React.FC<{
 						<li
 							key={`${frame.id}-bullet-${index}`}
 							style={{
-								fontSize: 28,
-								lineHeight: 1.5,
+								fontSize: 34,
+								fontWeight: 400,
+								fontFamily: 'Kalam, "Caveat", "Dancing Script", "Indie Flower", "Shadows Into Light", cursive, sans-serif',
+								lineHeight: 1.4,
 								opacity: progress,
 								transform: `translateY(${(1 - progress) * 15}px)`,
+								color: '#000',
+								letterSpacing: 0,
+								textRendering: 'geometricPrecision',
+								WebkitTextStroke: '0.2px #000',
+								textShadow: '0 0 1px #000, 0 0 0.5px #000',
+								WebkitFontSmoothing: 'antialiased',
+								MozOsxFontSmoothing: 'grayscale',
 							}}
 						>
-							{bullet}
+							{truncateForDisplay(bullet, 80)}
 						</li>
 					);
 				})}
@@ -249,18 +335,27 @@ const SketchingSVG: React.FC<{
 			pathElements.forEach((path) => {
 				const d = path.getAttribute('d');
 				if (d) {
-					// Extract starting coordinates from path data
-					// Path data format: "M x,y ..." or "m dx,dy ..."
-					const match = d.match(/^[Mm]\s*([-\d.]+)[,\s]+([-\d.]+)/);
-					let startX = 0;
-					let startY = 0;
-					
-					if (match) {
-						startX = parseFloat(match[1]) || 0;
-						startY = parseFloat(match[2]) || 0;
+					// Split a single path into segments on Move commands to enforce strict top-to-bottom
+					const parts: string[] = [];
+					let current = '';
+					for (let i = 0; i < d.length; i++) {
+						const ch = d[i];
+						if ((ch === 'M' || ch === 'm') && current.trim()) {
+							parts.push(current.trim());
+							current = ch;
+						} else {
+							current += ch;
+						}
 					}
-					
-					pathData.push({d, startX, startY});
+					if (current.trim()) parts.push(current.trim());
+					const segments = parts.length > 0 ? parts : [d];
+
+					segments.forEach(seg => {
+						const match = seg.match(/^[Mm]\s*([-\d.]+)[,\s]+([-\d.]+)/);
+						const startX = match ? parseFloat(match[1]) || 0 : 0;
+						const startY = match ? parseFloat(match[2]) || 0 : 0;
+						pathData.push({ d: seg, startX, startY });
+					});
 				}
 			});
 			
@@ -306,31 +401,35 @@ const SketchingSVG: React.FC<{
 				style={{
 					width: '100%',
 					height: '100%',
-					objectFit: 'contain',
-					backgroundColor: '#f8fafc',
+					objectFit: 'cover',
+					backgroundColor: '#000000',
 				}}
 			/>
 		);
 	}
 
 	if (!svgContent || paths.length === 0) {
+		loadFont(); // Load handwritten font for loading messages
 		return (
 			<div style={{width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-				<div style={{color: '#475569'}}>Loading sketch...</div>
+				<div style={{
+					color: '#475569',
+					fontFamily: 'Kalam, "Caveat", "Dancing Script", "Indie Flower", "Shadows Into Light", cursive, sans-serif'
+				}}>Loading sketch...</div>
 			</div>
 		);
 	}
 
 	// Calculate which paths should be visible - real sketching experience
 	// Split scene into two phases:
-	// Phase 1: Sketch animation (65% of scene duration) - lengthy drawing phase
-	// Phase 2: Hold + zoom (35% of scene duration) - completed sketch with camera movement
-	const sketchPhaseRatio = 0.65; // Use 65% of scene for sketching
+	// Phase 1: Sketch animation (80% of scene duration) - hand-drawn look, slower
+	// Phase 2: Hold + zoom (20% of scene duration) - completed sketch with camera movement
+	const sketchPhaseRatio = 0.8; // Use 80% of scene for sketching (slower draw)
 	const sketchPhaseDurationInFrames = Math.floor(durationInFrames * sketchPhaseRatio);
 	const holdPhaseDurationInFrames = durationInFrames - sketchPhaseDurationInFrames;
 	
 	// Add a brief delay before starting to draw (pen positioning and preparation)
-	const delayFrames = Math.floor(fps * 0.5); // 0.5 second delay for anticipation
+	const delayFrames = Math.floor(fps * 0.3); // 0.3 second delay for anticipation
 	const drawingStartFrame = delayFrames;
 	const drawingDurationFrames = sketchPhaseDurationInFrames - delayFrames; // Rest of sketch phase for drawing
 	
@@ -462,11 +561,11 @@ const SketchingSVG: React.FC<{
 	return (
 		<AbsoluteFill
 			style={{
-				backgroundColor: '#f8fafc',
+				backgroundColor: '#000000',
 				display: 'flex',
 				alignItems: 'center',
 				justifyContent: 'center',
-				padding: '0.5%', // Minimal padding - almost no white space
+				padding: 0,
 			}}
 		>
 			<div
@@ -481,24 +580,22 @@ const SketchingSVG: React.FC<{
 				}}
 			>
 				<svg
-					width={width}
-					height={height}
+					width="100%"
+					height="100%"
 					viewBox={`0 0 ${width} ${height}`}
 					preserveAspectRatio="xMidYMid meet"
 					style={{
-						maxWidth: '99%',
-						maxHeight: '99%',
-						width: 'auto',
-						height: 'auto',
-						filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.08))', // Very subtle shadow
+						width: '100%',
+						height: '100%',
+						filter: 'none',
 					}}
 				>
-				<g fill="none" stroke="#000000" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round">
+				<g fill="none" stroke="#000000" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
 					{isSketchPhase ? (
 						<>
 							{/* Show completed paths (fully drawn) */}
 							{paths.slice(0, completedPathCount).map((d, i) => (
-								<path key={`completed-${i}`} d={d} style={{opacity: 1}} />
+								<path key={`completed-${i}`} d={d} style={{opacity: 1}} vectorEffect="non-scaling-stroke" />
 							))}
 							{/* Animate current path being drawn - ONE path at a time, sequentially */}
 							{currentPathIndex < paths.length && (
@@ -511,7 +608,7 @@ const SketchingSVG: React.FC<{
 					) : (
 						/* In hold phase, show all paths completed */
 						paths.map((d, i) => (
-							<path key={`hold-${i}`} d={d} style={{opacity: 1}} />
+							<path key={`hold-${i}`} d={d} style={{opacity: 1}} vectorEffect="non-scaling-stroke" />
 						))
 					)}
 				</g>
@@ -525,18 +622,25 @@ const WhiteboardFrame: React.FC<{
 	asset?: string;
 	animate?: boolean;
 	vectorized?: {svgUrl: string; width: number; height: number};
+	vectorizedList?: Array<{svgUrl: string; width: number; height: number}>;
 	heading?: string;
 	text?: string;
 	svgString?: string; // Pre-loaded SVG string
+	sequenceDurationInFrames?: number; // CRITICAL: Individual sequence duration, not total video duration
 }> = ({
 	asset,
 	animate = false,
 	vectorized,
+	vectorizedList,
 	heading,
 	text,
 	svgString: providedSvgString,
+	sequenceDurationInFrames,
 }) => {
-	const {durationInFrames, fps} = useVideoConfig();
+	const {fps} = useVideoConfig();
+	// CRITICAL FIX: Use sequence duration if provided, otherwise fall back to total duration
+	// This ensures each frame animates correctly, not just first and last
+	const durationInFrames = sequenceDurationInFrames ?? useVideoConfig().durationInFrames;
 	const [svgString, setSvgString] = React.useState<string | null>(providedSvgString || null);
 	const [isLoading, setIsLoading] = React.useState(!providedSvgString);
 	const [loadError, setLoadError] = React.useState(false);
@@ -594,17 +698,19 @@ const WhiteboardFrame: React.FC<{
 	}, [vectorized?.svgUrl, animate, providedSvgString]);
 
 	if (!asset) {
+		loadFont(); // Load handwritten font for error messages
 		return (
 			<div
 				style={{
 					width: '100%',
 					height: '100%',
-					background: '#f8fafc',
+					background: '#000000',
 					display: 'flex',
 					alignItems: 'center',
 					justifyContent: 'center',
 					fontSize: 32,
-					color: '#475569',
+					fontFamily: 'Kalam, "Caveat", "Dancing Script", "Indie Flower", "Shadows Into Light", cursive, sans-serif',
+					color: '#ffffff',
 				}}
 			>
 				Whiteboard asset unavailable
@@ -622,40 +728,95 @@ const WhiteboardFrame: React.FC<{
 				style={{
 					width: '100%',
 					height: '100%',
-					objectFit: 'contain',
-					backgroundColor: '#f8fafc',
+					objectFit: 'cover',
+					backgroundColor: '#000000',
 				}}
 			/>
 		);
 	}
 
 	// Use new WhiteboardAnimatorPrecise component for fast 3-second reveal
+	if (animate && vectorizedList && vectorizedList.length > 0) {
+		// Montage: up to 3 items laid out horizontally; draw sequentially top-to-bottom within scene
+		const items = vectorizedList.slice(0, 3);
+		const segmentFrames = Math.max(1, Math.floor(durationInFrames / items.length));
+		return (
+			<AbsoluteFill style={{ backgroundColor: '#000000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+				<div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, 1fr)`, gap: '32px', width: '92%', height: '92%' }}>
+					{items.map((it, idx) => {
+						const start = idx * segmentFrames;
+						const segSeconds = segmentFrames / fps;
+						// Each column renders within its own sub-sequence; draw for most of its segment
+						return (
+							<Sequence key={`grid-${idx}`} from={start} durationInFrames={segmentFrames}>
+								<SketchingSVG
+									svgUrl={it.svgUrl}
+									width={it.width}
+									height={it.height}
+									durationInFrames={segmentFrames}
+								/>
+							</Sequence>
+						);
+					})}
+				</div>
+			</AbsoluteFill>
+		);
+	}
+
+	// Use new WhiteboardAnimatorPrecise component for flexible reveal based on content
 	if (animate && vectorized && svgString) {
+		// Validate SVG string is not empty
+		if (!svgString || svgString.trim().length === 0) {
+			console.error('[WhiteboardFrame] SVG string is empty, falling back to static image');
+			return (
+				<Img
+					src={asset}
+					style={{
+						width: '100%',
+						height: '100%',
+						objectFit: 'cover',
+						backgroundColor: '#ffffff',
+					}}
+				/>
+			);
+		}
+		
 		const sceneDurationSeconds = durationInFrames / fps;
+		// Allocate 70-80% of scene time to sketching animation (flexible based on content/voiceover)
+		const revealSeconds = Math.min(
+			Math.max(4, sceneDurationSeconds * 0.75), // Minimum 4 seconds for sketching (flexible)
+			Math.max(1, sceneDurationSeconds - 1)
+		);
+		
 		return (
 			<WhiteboardAnimatorPrecise
 				svgString={svgString}
 				sceneDurationSeconds={sceneDurationSeconds}
-				revealFinishSeconds={3}
-				revealStrategy="balanced"
-				text={text || heading}
-				showText={!!(text || heading)}
+				revealFinishSeconds={revealSeconds}
+				revealStrategy="sequential" // Top-to-bottom ordering (flexible based on input requirements)
+				text={undefined}
+				showText={false}
 			/>
 		);
 	}
 
 	// Loading state
 	if (animate && vectorized && isLoading) {
+		loadFont(); // Load handwritten font for loading messages
 		return (
 			<AbsoluteFill
 				style={{
-					backgroundColor: '#f8fafc',
+					backgroundColor: '#000000',
 					display: 'flex',
 					alignItems: 'center',
 					justifyContent: 'center',
 				}}
 			>
-				<div style={{ color: '#475569', fontSize: 24 }}>Loading sketch...</div>
+				<div style={{ 
+					color: '#ffffff', 
+					fontSize: 24,
+					fontFamily: 'Kalam, "Caveat", "Dancing Script", "Indie Flower", "Shadows Into Light", cursive, sans-serif'
+				}}>Loading sketch...</div>
 			</AbsoluteFill>
 		);
 	}
@@ -668,19 +829,19 @@ const WhiteboardFrame: React.FC<{
 				style={{
 					width: '100%',
 					height: '100%',
-					objectFit: 'contain',
-					backgroundColor: '#f8fafc',
+					objectFit: 'cover',
+					backgroundColor: '#000000',
 				}}
 			/>
 		);
 	}
 
-	// Fallback: Simple animated effects for static images (when no vectorized SVG)
+	// Fallback: Minimal reveal for static images (when no vectorized SVG) - no pen cursor, no heavy mask
 	if (animate && !vectorized) {
 		const currentFrame = useCurrentFrame();
-		const animationDuration = Math.min(durationInFrames * 0.7, fps * 3); // 3 seconds or 70% of duration
+		const animationDuration = Math.min(durationInFrames * 0.6, fps * 2.5); // short fade-in only
 		
-		// Overall progress for the sketching animation
+		// Simple fade
 		const sketchProgress = interpolate(
 			currentFrame,
 			[0, animationDuration],
@@ -704,23 +865,10 @@ const WhiteboardFrame: React.FC<{
 			}
 		);
 
-		// Create a more organic reveal pattern - simulates drawing from top-left, following a path
-		// Uses a combination of diagonal and circular reveals for a more natural sketching feel
-		const diagonalProgress = sketchProgress;
-		const circularReveal = Math.sin(sketchProgress * Math.PI * 2) * 0.3 + 0.7; // Oscillating reveal
-		
-		// Mask that reveals in a sketching pattern (top-left to bottom-right with variations)
-		const maskWidth = Math.min(100, diagonalProgress * 120); // Slightly overshoots for smoothness
-		const maskHeight = Math.min(100, diagonalProgress * 110);
-		
-		// Pen cursor position (follows the reveal)
-		const penX = interpolate(sketchProgress, [0, 1], [10, 90], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-		const penY = interpolate(sketchProgress, [0, 1], [15, 85], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-
 		return (
 			<AbsoluteFill
 				style={{
-					backgroundColor: '#f8fafc',
+					backgroundColor: '#000000',
 					overflow: 'hidden',
 				}}
 			>
@@ -732,56 +880,15 @@ const WhiteboardFrame: React.FC<{
 						opacity: fadeIn,
 					}}
 				>
-					{/* Main image */}
 					<Img
 						src={asset}
 						style={{
 							width: '100%',
 							height: '100%',
-							objectFit: 'contain',
-							filter: sketchProgress < 1 ? 'blur(0.5px)' : 'blur(0px)', // Slight blur during drawing
+							objectFit: 'cover',
+							filter: sketchProgress < 1 ? 'blur(0.5px)' : 'blur(0px)',
 						}}
 					/>
-					
-					{/* Sketching reveal mask - creates organic drawing effect */}
-					<div
-						style={{
-							position: 'absolute',
-							top: 0,
-							left: 0,
-							width: '100%',
-							height: '100%',
-							background: `linear-gradient(
-								135deg,
-								#f8fafc ${(1 - maskWidth) * 100}%,
-								transparent ${(1 - maskWidth * 0.7) * 100}%
-							)`,
-							clipPath: sketchProgress < 1 
-								? `polygon(0% 0%, ${maskWidth}% 0%, ${maskWidth * 0.9}% ${maskHeight}%, 0% ${maskHeight}%)`
-								: 'none',
-							transition: 'clip-path 0.05s linear',
-						}}
-					/>
-					
-					{/* Optional: Pen cursor effect (visual indicator of drawing) */}
-					{sketchProgress < 0.95 && (
-						<div
-							style={{
-								position: 'absolute',
-								left: `${penX}%`,
-								top: `${penY}%`,
-								width: '20px',
-								height: '20px',
-								borderRadius: '50%',
-								background: 'rgba(59, 130, 246, 0.6)',
-								border: '2px solid rgba(59, 130, 246, 0.9)',
-								transform: 'translate(-50%, -50%)',
-								boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)',
-								pointerEvents: 'none',
-								opacity: fadeIn * 0.8,
-							}}
-						/>
-					)}
 				</div>
 			</AbsoluteFill>
 		);
@@ -794,8 +901,8 @@ const WhiteboardFrame: React.FC<{
 			style={{
 				width: '100%',
 				height: '100%',
-				objectFit: 'contain',
-				backgroundColor: '#f8fafc',
+				objectFit: 'cover',
+				backgroundColor: '#000000',
 			}}
 		/>
 	);
@@ -816,13 +923,21 @@ const FrameWithTransition: React.FC<{
 	const currentFrame = useCurrentFrame();
 	const {fps} = useVideoConfig();
 	
+	// CRITICAL FIX: Convert absolute frame numbers to relative (sequence-based) frame numbers
+	// useCurrentFrame() inside a Sequence returns frames relative to sequence start (0-based)
+	// But fadeInStart, fadeInEnd, etc. are absolute frame numbers, so we need to subtract currentStart
+	const relativeFadeInStart = fadeInStart - currentStart;
+	const relativeFadeInEnd = fadeInEnd - currentStart;
+	const relativeFadeOutStart = fadeOutStart - currentStart;
+	const relativeFadeOutEnd = fadeOutEnd - currentStart;
+	
 	// Smooth fade in/out with cross-fade effect
 	const fadeIn = interpolate(
 		currentFrame,
-		[fadeInStart, fadeInEnd],
+		[relativeFadeInStart, relativeFadeInEnd],
 		[0, 1],
 		{
-			easing: Easing.out(Easing.ease),
+			easing: Easing.bezier(0.22, 0.0, 0.08, 1.0),
 			extrapolateLeft: 'clamp',
 			extrapolateRight: 'clamp',
 		}
@@ -830,10 +945,10 @@ const FrameWithTransition: React.FC<{
 	
 	const fadeOut = interpolate(
 		currentFrame,
-		[fadeOutStart, fadeOutEnd],
+		[relativeFadeOutStart, relativeFadeOutEnd],
 		[1, 0],
 		{
-			easing: Easing.in(Easing.ease),
+			easing: Easing.bezier(0.22, 0.0, 0.08, 1.0),
 			extrapolateLeft: 'clamp',
 			extrapolateRight: 'clamp',
 		}
@@ -841,23 +956,14 @@ const FrameWithTransition: React.FC<{
 	
 	const opacity = isFirst ? fadeIn : isLast ? fadeOut : Math.min(fadeIn, fadeOut);
 	
-	// Subtle zoom effect (golpo.ai style - gentle scale animation on frame start)
-	const zoomProgress = interpolate(
-		currentFrame,
-		[currentStart, currentStart + Math.min(durationInFrames * 0.15, fps * 1.5)],
-		[0.97, 1],
-		{
-			easing: Easing.out(Easing.ease),
-			extrapolateLeft: 'clamp',
-			extrapolateRight: 'clamp',
-		}
-	);
+	// Disable micro-motion to avoid shaking; keep content stable
+	const zoom = 1;
 	
 	return (
 		<AbsoluteFill
 			style={{
 				opacity,
-				transform: `scale(${zoomProgress})`,
+				transform: `scale(${zoom})`,
 			}}
 		>
 			{children}
@@ -867,6 +973,7 @@ const FrameWithTransition: React.FC<{
 
 const MotionFrame: React.FC<{asset?: string}> = ({asset}) => {
 	if (!asset) {
+		loadFont(); // Load handwritten font for error messages
 		return (
 			<div
 				style={{
@@ -878,6 +985,7 @@ const MotionFrame: React.FC<{asset?: string}> = ({asset}) => {
 					alignItems: 'center',
 					justifyContent: 'center',
 					fontSize: 32,
+					fontFamily: 'Kalam, "Caveat", "Dancing Script", "Indie Flower", "Shadows Into Light", cursive, sans-serif',
 				}}
 			>
 				Motion scene unavailable
@@ -898,49 +1006,149 @@ const MotionFrame: React.FC<{asset?: string}> = ({asset}) => {
 };
 
 export const VideoFromAI: React.FC<{data: AIVideoData}> = ({data}) => {
-	const {fps} = useVideoConfig();
+	const {fps, durationInFrames} = useVideoConfig();
+	const currentFrame = useCurrentFrame();
 	const plan = data ?? FALLBACK_PLAN;
 
 	let currentStart = 0;
 
 	const filteredFrames = plan.frames.filter((frame) => frame.type === 'whiteboard_diagram' || frame.type === 'motion_scene');
-	const transitionDuration = fps * 1.2; // 1.2 second smooth cross-fade for better continuity
+	// Faster transitions: ensure first content is visible almost immediately (<=150ms fade for first frame)
+	const FIRST_FADE_FRAMES = Math.max(1, Math.round(fps * 0.1)); // ~100ms
+	const OTHER_FADE_FRAMES = Math.max(1, Math.round(fps * 0.2)); // ~200ms
+	const OVERLAP_FRAMES = Math.max(1, Math.round(fps * 0.15)); // ~150ms crossfade overlap
+
+	// Calculate total video duration in frames for music fade
+	const totalVideoFrames = filteredFrames.reduce((total, frame) => {
+		// Use frame.duration if specified (flexible based on content/voiceover), otherwise minimal defaults
+		const frameDuration = frame.duration ?? (frame.type === 'whiteboard_diagram' ? 6 : 4);
+		return total + Math.max(1, Math.round(frameDuration * fps));
+	}, 0);
+
+	// Prepare background music path if provided
+	// staticFile() expects paths relative to public/ directory (no leading /)
+	const backgroundMusicSrc = plan.backgroundMusic
+		? (plan.backgroundMusic.startsWith('http')
+			? plan.backgroundMusic // External URL - use as is
+			: plan.backgroundMusic.startsWith('/')
+				? staticFile(plan.backgroundMusic.replace(/^\//, '')) // Remove leading / for staticFile
+				: staticFile(plan.backgroundMusic)) // Already relative to public
+		: null;
+
+	// Calculate background music volume with fade-in and fade-out
+	const musicFadeDuration = fps * 2; // 2 seconds fade-in/fade-out
+	const maxMusicVolume = 0.05; // 5% volume (very quiet to not shadow voiceover)
+	const musicFadeIn = interpolate(
+		currentFrame,
+		[0, musicFadeDuration],
+		[0, maxMusicVolume], // Fade from 0 to 5% volume
+		{
+			extrapolateLeft: 'clamp',
+			extrapolateRight: 'clamp',
+		}
+	);
+	const musicFadeOut = interpolate(
+		currentFrame,
+		[totalVideoFrames - musicFadeDuration, totalVideoFrames],
+		[maxMusicVolume, 0], // Fade from 5% to 0 volume
+		{
+			extrapolateLeft: 'clamp',
+			extrapolateRight: 'clamp',
+		}
+	);
+	const musicVolume = Math.min(musicFadeIn, musicFadeOut > 0 ? musicFadeOut : musicFadeIn);
 
 	return (
-		<AbsoluteFill style={{backgroundColor: '#f8fafc', color: '#0f172a'}}>
+		<AbsoluteFill style={{backgroundColor: '#000000', color: '#ffffff', overflow: 'hidden'}}>
+			{/* Background music - plays throughout entire video with fade-in/fade-out and loops if needed */}
+			{/* Only render if backgroundMusic is provided and valid */}
+			{backgroundMusicSrc && backgroundMusicSrc.trim() !== '' && (
+				<Audio
+					src={backgroundMusicSrc}
+					startFrom={0}
+					volume={musicVolume} // Dynamic volume with fade-in/fade-out (max 5%)
+					loop // Loop if video is longer than music track
+				/>
+			)}
 			{filteredFrames.map((frame, index) => {
-				// Give whiteboard diagrams 18 seconds total: lengthy sketch phase + hold/zoom phase
-				let frameDuration = frame.duration ?? 4;
-				if (frame.type === 'whiteboard_diagram') {
-					frameDuration = 18; // 18 seconds: ~65% sketch phase (~11.7s) + ~35% hold/zoom phase (~6.3s)
+				// Use frame.duration if specified (flexible timing based on content/voiceover), otherwise use minimal defaults
+				// Duration is fully flexible based on input requirements and voiceover length
+				let frameDuration = frame.duration;
+				if (!frameDuration || frameDuration <= 0) {
+					// Use minimal defaults if duration not specified
+					frameDuration = frame.type === 'whiteboard_diagram' ? 6 : 4;
 				}
+				// Ensure minimum 2.5 seconds for sketch animation to complete
+				frameDuration = Math.max(2.5, frameDuration);
 				const durationInFrames = Math.max(1, Math.round(frameDuration * fps));
 				
-				// Calculate smooth fade transitions
+				// Calculate smooth fade transitions (white fade) with minimal delay for first frame
 				const isFirst = index === 0;
 				const isLast = index === filteredFrames.length - 1;
 				const fadeInStart = currentStart;
-				const fadeInEnd = currentStart + transitionDuration;
-				const fadeOutStart = currentStart + durationInFrames - transitionDuration;
+				const fadeInEnd = currentStart + (isFirst ? FIRST_FADE_FRAMES : OTHER_FADE_FRAMES);
+				const fadeOutStart = currentStart + durationInFrames - OTHER_FADE_FRAMES;
 				const fadeOutEnd = currentStart + durationInFrames;
 				
 				// Prepare voiceover path using staticFile() for proper public directory access
-				const voiceoverSrc = frame.voiceoverUrl
-					? (frame.voiceoverUrl.startsWith('/')
-						? staticFile(frame.voiceoverUrl.replace(/^\//, ''))
-						: staticFile(frame.voiceoverUrl))
-					: null;
+				// staticFile() automatically looks in public/ directory
+				// Frame voiceoverUrl should be like: "assets/voiceovers/filename.mp3" (relative to public/)
+				let voiceoverSrc: string | null = null;
+				if (frame.voiceoverUrl) {
+					if (frame.voiceoverUrl.startsWith('http')) {
+						voiceoverSrc = frame.voiceoverUrl; // External URL - use as is
+					} else {
+						// Remove leading / if present, then use staticFile
+						const cleanPath = frame.voiceoverUrl.replace(/^\//, '');
+						voiceoverSrc = staticFile(cleanPath);
+					}
+				}
 				
 				const sequence = (
 					<Sequence key={frame.id} from={currentStart} durationInFrames={durationInFrames}>
-						{/* Voiceover audio */}
-						{voiceoverSrc && (
-							<Audio
-								src={voiceoverSrc}
-								startFrom={0}
-								volume={1}
-							/>
-						)}
+						{/* Voiceover audio - synchronized with sketching animation */}
+						{/* Delay voiceover start to sync with sketching: start after 10% of scene or when sketching begins */}
+						{(() => {
+							const voiceoverDelayFrames = frame.type === 'whiteboard_diagram' && frame.animate 
+								? Math.max(0, Math.floor(durationInFrames * 0.1))
+								: 0;
+							
+							return voiceoverSrc ? (
+								<Sequence from={voiceoverDelayFrames} durationInFrames={durationInFrames}>
+									<Audio
+										key={`voiceover-${frame.id}`}
+										src={voiceoverSrc}
+										startFrom={0}
+										volume={1.0} // Full volume (100%) to be clearly audible over background music (5%)
+									/>
+								</Sequence>
+							) : null;
+						})()}
+						
+						{/* Subtitles - synchronized with voiceover (movie-style subtitles) */}
+						{frame.voiceoverScript ? (
+							(() => {
+								// Calculate voiceover delay to match audio delay
+								// Subtitles should start exactly when voiceover audio starts
+								const hasVoiceover = !!frame.voiceoverUrl;
+								const voiceoverDelayFrames = hasVoiceover && frame.type === 'whiteboard_diagram' && frame.animate 
+									? Math.max(0, Math.floor(durationInFrames * 0.1))
+									: 0; // No delay if no voiceover or not animated
+								
+								// Subtitles should show for the ENTIRE voiceover duration
+								// Start when voiceover starts, end when sequence ends (or voiceover ends)
+								// Pass voiceoverUrl for enhanced syncing with actual audio duration
+								return (
+									<SubtitleOverlay
+										text={frame.voiceoverScript}
+										startFrame={0} // Always 0 since we're inside the Sequence (relative frames)
+										durationInFrames={durationInFrames} // Show for entire sequence duration
+										voiceoverDelayFrames={voiceoverDelayFrames} // Start when voiceover starts
+										voiceoverUrl={frame.voiceoverUrl || undefined} // Pass for audio duration syncing
+									/>
+								);
+							})()
+						) : null}
 						<FrameWithTransition
 							fadeInStart={fadeInStart}
 							fadeInEnd={fadeInEnd}
@@ -959,6 +1167,7 @@ export const VideoFromAI: React.FC<{data: AIVideoData}> = ({data}) => {
 									heading={frame.heading}
 									text={frame.text}
 									svgString={frame.svgString}
+									sequenceDurationInFrames={durationInFrames} // CRITICAL: Pass individual frame duration
 								/>
 							) : (
 								<MotionFrame asset={frame.asset} />
@@ -967,7 +1176,9 @@ export const VideoFromAI: React.FC<{data: AIVideoData}> = ({data}) => {
 					</Sequence>
 				);
 
-				currentStart += durationInFrames;
+				// Overlap next scene to avoid sudden jumps
+				const overlap = index < filteredFrames.length - 1 ? OVERLAP_FRAMES : 0;
+				currentStart += Math.max(1, durationInFrames - overlap);
 				return sequence;
 			})}
 		</AbsoluteFill>

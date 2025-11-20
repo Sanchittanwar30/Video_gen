@@ -25,16 +25,20 @@ export interface StructuredVideoPlan {
 
 const PROMPT_TEMPLATE = `You are an AI that outputs STRICT valid JSON for educational whiteboard-style videos.
 
-IMPORTANT: Generate EXACTLY 2 whiteboard diagram frames. Do NOT include text_slide or bullet_slide frames.
+IMPORTANT: Generate an appropriate number of whiteboard diagram frames based on the topic complexity and content. Do NOT include text_slide or bullet_slide frames.
 Only use: "whiteboard_diagram" frame type.
 
 CRITICAL REQUIREMENTS:
-- Generate EXACTLY 2 whiteboard diagram frames (no more, no less)
-- Each frame must be DETAILED and EDUCATIONAL with rich context
-- First frame: Introduction/overview of the topic
-- Second frame: Detailed explanation or deeper dive
-- Include labels, arrows, annotations, and visual elements
-- Make each sketch comprehensive and informative
+- Generate up to 5 whiteboard diagram frames maximum (flexible: 1-5 frames based on topic complexity)
+- Each frame must be VISUAL and FIGURE-FOCUSED with minimal text
+- First frame: Introduction/overview using diagrams and figures
+- Subsequent frames: Progressively detailed explanations using visual diagrams and shapes
+- Focus on diagrams, shapes, figures, flowcharts, and visual elements
+- MINIMAL TEXT - only essential labels if needed (less than 10% text)
+- Prioritize geometric shapes, visual connections, and diagrammatic representations
+- Make each sketch illustration-heavy and text-light
+- Break down complex topics into multiple frames if needed to ensure clarity
+- Generate the appropriate number of frames for the topic (simple topics may need fewer frames, complex topics may need more)
 
 Given topic + description, output:
 {
@@ -43,24 +47,33 @@ Given topic + description, output:
     {
       "id": "frame_1",
       "type": "whiteboard_diagram",
-      "prompt_for_image": "DETAILED description for first whiteboard diagram. Must include: specific elements to draw, labels, arrows, annotations, relationships, visual hierarchy. Be comprehensive and educational. This is the introduction/overview frame.",
-      "heading": "optional string for context",
+      "prompt_for_image": "A clear educational whiteboard diagram explaining [specific concept from topic] - introduction/overview. Use geometric shapes, flowcharts, and visual connections to show the main concept. Include essential labels (less than 10% text). Make it informative and directly related to the topic.",
+      "heading": "CRITICAL: Must be directly related to the input topic. Use a concise, topic-specific heading that describes what this frame explains (e.g., 'Introduction to [topic]', 'Understanding [key concept]', '[Topic] Overview'). Do NOT use generic titles like 'Frame 1' or random unrelated titles.",
       "duration": 4
     },
     {
       "id": "frame_2",
       "type": "whiteboard_diagram",
-      "prompt_for_image": "DETAILED description for second whiteboard diagram. Must include: specific elements to draw, labels, arrows, annotations, relationships, visual hierarchy. Be comprehensive and educational. This is the detailed explanation frame.",
-      "heading": "optional string for context",
+      "prompt_for_image": "A clear educational whiteboard diagram explaining [specific aspect of topic] in detail. Use geometric shapes, flowcharts, and visual connections to show relationships and processes. Include essential labels (less than 10% text). Make it informative and directly related to the topic.",
+      "heading": "CRITICAL: Must be directly related to the input topic. Use a concise, topic-specific heading that describes what this frame explains. Do NOT use generic titles like 'Frame 2' or random unrelated titles.",
       "duration": 4
     }
+    // Maximum 5 frames total - generate 1-5 frames based on topic complexity
   ]
 }
 
 EXAMPLE of good prompt_for_image:
-"A detailed whiteboard diagram showing [concept]. Include: [specific elements], labeled with [labels], connected by arrows showing [relationships]. Add annotations explaining [details]. Use visual hierarchy with [elements] in the center and [supporting elements] around it."
+"A clear educational whiteboard diagram explaining [specific concept from topic] using geometric shapes, flowcharts, and visual connections. Show [specific relationships, processes, or structures relevant to the topic]. Include essential labels (less than 10% text) that help explain the concept. Make it informative and directly related to the topic - avoid abstract or decorative elements. ALL text labels must be spelled correctly with zero tolerance for spelling mistakes."
 
-Focus on visual storytelling through DETAILED, HIGH-QUALITY sketches. Generate EXACTLY 2 comprehensive whiteboard diagram frames that explain the topic.
+IMPORTANT: Each prompt_for_image must be specific to the topic and create a meaningful educational diagram. Avoid generic descriptions. Focus on creating diagrams that clearly explain the concept being taught.
+
+CRITICAL: The prompt_for_image should describe what to DRAW, not what to LABEL. Do NOT include any text in the prompt that suggests adding labels like "visual_aid", "visual aid", "diagram", "chart", or any descriptive text about what the image is. Only describe the actual educational content to be drawn.
+
+SPELLING REQUIREMENT: When describing text labels to include, emphasize that ALL words must be spelled correctly. Use exact spellings from the topic description. If technical terms are mentioned, use their exact spelling.
+
+🚫 FORBIDDEN IN PROMPTS: Never include "visual_aid", "visual aid", or any descriptive labels in the prompt_for_image. The prompt should only describe the educational content to draw, not labels about what the image is.
+
+Focus on visual storytelling through DIAGRAMS, FIGURES, and SHAPES. Generate 1-5 figure-focused whiteboard diagram frames with minimal text that explain the topic visually. Generate the appropriate number of frames based on topic complexity - simple topics may need 1-2 frames, complex topics may need up to 5 frames.
 The JSON must be valid. No prose or markdown.`;
 
 const validatePlan = (plan: StructuredVideoPlan): StructuredVideoPlan => {
@@ -90,13 +103,41 @@ const validatePlan = (plan: StructuredVideoPlan): StructuredVideoPlan => {
 
 		const duration = Number.isFinite(frame.duration) ? Number(frame.duration) : 4;
 
-		// Ensure whiteboard diagrams have detailed prompts
+		// Ensure whiteboard diagrams have detailed prompts and sanitize them
 		let prompt_for_image = frame.prompt_for_image;
 		if (type === 'whiteboard_diagram' && prompt_for_image) {
-			// Enhance prompt if it's too short or lacks detail
+			// Sanitize prompt to remove metadata, JSON, code blocks, etc.
+			prompt_for_image = prompt_for_image
+				.replace(/```json[\s\S]*?```/gi, '') // Remove JSON code blocks
+				.replace(/```[\s\S]*?```/gi, '') // Remove any code blocks
+				.replace(/\{[^}]*"visual_aid"[^}]*\}/gi, '') // Remove JSON objects with visual_aid
+				.replace(/\{[^}]*"drawing_[^}]*\}/gi, '') // Remove JSON objects with drawing_*
+				.replace(/\{[^}]*"type"[^}]*\}/gi, '') // Remove JSON objects with type
+				.replace(/\[[^\]]*"visual_aid"[^\]]*\]/gi, '') // Remove arrays with visual_aid
+				.replace(/visual_aid/gi, '')
+				.replace(/visual aid/gi, '')
+				.replace(/drawing_instructions/gi, '')
+				.replace(/drawing_elements/gi, '')
+				.replace(/`{3,}/g, '') // Remove 3+ consecutive backticks
+				.replace(/`{1,2}/g, '') // Remove 1-2 backticks
+				.trim();
+			
+			// Validate prompt quality
 			const promptLength = prompt_for_image.length;
-			if (promptLength < 100) {
-				console.warn(`[Structured Plan] Frame ${frame.id} has short prompt (${promptLength} chars), may need enhancement`);
+			if (promptLength < 50) {
+				console.warn(`[Structured Plan] ⚠️  Frame ${frame.id} has very short prompt (${promptLength} chars) after sanitization`);
+			}
+			
+			// Check for metadata patterns that shouldn't be in the prompt
+			const hasMetadata = /Type\s*:|Style\s*:|Category\s*:|whiteboard_drawing|visual_aid|drawing_instructions|drawing_elements/i.test(prompt_for_image);
+			if (hasMetadata) {
+				console.warn(`[Structured Plan] ⚠️  Frame ${frame.id} prompt may contain metadata patterns, attempting to clean...`);
+				prompt_for_image = prompt_for_image
+					.replace(/\bType\s*:\s*\w+/gi, '')
+					.replace(/\bStyle\s*:\s*\w+/gi, '')
+					.replace(/\bCategory\s*:\s*\w+/gi, '')
+					.replace(/whiteboard_drawing[:\s]*\w*/gi, '')
+					.trim();
 			}
 		}
 
@@ -112,20 +153,31 @@ const validatePlan = (plan: StructuredVideoPlan): StructuredVideoPlan => {
 		};
 	});
 
-	// Validate frame count for whiteboard diagrams (should be exactly 2)
+	// Validate frame count for whiteboard diagrams (should be at least 1, maximum 5)
 	const whiteboardFrames = validatedFrames.filter(f => f.type === 'whiteboard_diagram');
-	if (whiteboardFrames.length !== 2) {
-		console.warn(`[Structured Plan] Generated ${whiteboardFrames.length} whiteboard diagram frames. Expected exactly 2.`);
-		// If we have more than 2, take only the first 2
-		if (whiteboardFrames.length > 2) {
-			const otherFrames = validatedFrames.filter(f => f.type !== 'whiteboard_diagram');
-			const firstTwoWhiteboard = whiteboardFrames.slice(0, 2);
-			return {
-				title: plan.title.trim(),
-				frames: [...firstTwoWhiteboard, ...otherFrames],
-			};
-		}
+	if (whiteboardFrames.length === 0) {
+		console.warn(`[Structured Plan] No whiteboard diagram frames generated. At least one frame is required.`);
+		throw new Error('Structured plan must include at least one whiteboard_diagram frame');
 	}
+	
+	// Limit to maximum 5 whiteboard diagram frames
+	if (whiteboardFrames.length > 5) {
+		console.warn(`[Structured Plan] Generated ${whiteboardFrames.length} whiteboard frames, limiting to 5 frames maximum.`);
+		// Keep only first 5 whiteboard frames, remove the rest
+		let whiteboardCount = 0;
+		const limitedFrames = validatedFrames.filter(frame => {
+			if (frame.type === 'whiteboard_diagram') {
+				whiteboardCount++;
+				return whiteboardCount <= 5;
+			}
+			return true; // Keep non-whiteboard frames
+		});
+		validatedFrames.length = 0;
+		validatedFrames.push(...limitedFrames);
+	}
+	
+	const finalWhiteboardFrames = validatedFrames.filter(f => f.type === 'whiteboard_diagram');
+	console.log(`[Structured Plan] Generated ${finalWhiteboardFrames.length} whiteboard diagram frame(s) (limited to 5 maximum).`);
 
 	return {
 		title: plan.title.trim(),
@@ -144,7 +196,7 @@ export const generateStructuredJSON = async (
 Topic: ${topic}
 ${description ? `Description: ${description}` : ''}
 
-CRITICAL: Generate EXACTLY 2 detailed whiteboard diagram frames. Each prompt_for_image must be comprehensive (at least 150+ characters) with specific visual elements, labels, arrows, and annotations.`.trim()
+CRITICAL: Generate 1-5 figure-focused whiteboard diagram frames based on topic complexity. Each prompt_for_image must emphasize diagrams, shapes, figures, and visual elements. MINIMAL TEXT - only essential labels if needed (less than 10% text). Focus on geometric shapes, flowcharts, and visual connections. Generate the appropriate number of frames for the topic - simple topics may need fewer frames, complex topics may need up to 5 frames.`.trim()
 		);
 		const plan = JSON.parse(response) as StructuredVideoPlan;
 		return validatePlan(plan);
@@ -155,7 +207,7 @@ CRITICAL: Generate EXACTLY 2 detailed whiteboard diagram frames. Each prompt_for
 Topic: ${topic}
 ${description ? `Description: ${description}` : ''}
 
-CRITICAL: Generate EXACTLY 2 detailed whiteboard diagram frames. Each prompt_for_image must be comprehensive (at least 150+ characters) with specific visual elements, labels, arrows, and annotations.
+CRITICAL: Generate 1-5 figure-focused whiteboard diagram frames based on topic complexity. Each prompt_for_image must emphasize diagrams, shapes, figures, and visual elements. MINIMAL TEXT - only essential labels if needed (less than 10% text). Focus on geometric shapes, flowcharts, and visual connections. Generate the appropriate number of frames for the topic - simple topics may need fewer frames, complex topics may need up to 5 frames.
 
 IMPORTANT: Respond with ONLY valid JSON. No commentary.`.trim();
 

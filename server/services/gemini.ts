@@ -4,26 +4,43 @@ import { promises as fs } from "fs";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
 
+// API Base URLs
+const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1/models";
+const VERTEX_AI_BASE = "https://us-central1-aiplatform.googleapis.com";
 
-
- // Use the v1beta endpoint (some Gemini models / features are available on v1beta)
-const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-
-const DEFAULT_TEXT_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+const DEFAULT_TEXT_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-pro";
 const TEXT_MODEL_FALLBACKS = process.env.GEMINI_TEXT_MODEL_FALLBACKS
   ? process.env.GEMINI_TEXT_MODEL_FALLBACKS.split(",").map((s) => s.trim()).filter(Boolean)
-  : ["gemini-2.0-flash", "gemini-1.5-pro"];
+  : ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"];
 
 // Keep default image model but also support a fallback list via env
-const DEFAULT_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL ?? "imagen-4.0-generate-preview-06-06";
+// Updated to use stable model names for Vertex AI v1
+const DEFAULT_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL ?? "imagen-4.0-generate-001";
 const IMAGE_MODEL_FALLBACKS = process.env.GEMINI_IMAGE_MODEL_FALLBACKS
   ? process.env.GEMINI_IMAGE_MODEL_FALLBACKS.split(",").map((s) => s.trim()).filter(Boolean)
-  : [DEFAULT_IMAGE_MODEL];
+  : [
+      "imagen-4.0-generate-001",          // Stable GA version
+      "imagen-3.0-generate-001",          // Stable fallback model
+      "imagen-2.0-generate-001",           // Older but reliable
+    ];
+
+// Google Cloud Project ID for Vertex AI (required for Imagen models)
+const GOOGLE_CLOUD_PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT_ID || process.env.GCP_PROJECT_ID;
+
+// Debug logging to verify project ID is loaded correctly
+if (!GOOGLE_CLOUD_PROJECT_ID || GOOGLE_CLOUD_PROJECT_ID === 'your-project-id') {
+  console.error('[ERROR] GOOGLE_CLOUD_PROJECT_ID is not set correctly!');
+  console.error('  Current value:', GOOGLE_CLOUD_PROJECT_ID);
+  console.error('  Please set GOOGLE_CLOUD_PROJECT_ID in your .env file');
+} else {
+  console.log(`[Vertex AI] Project ID loaded: ${GOOGLE_CLOUD_PROJECT_ID}`);
+}
 const IMAGE_SAMPLE_COUNT = Math.max(1, Number(process.env.GEMINI_IMAGE_SAMPLE_COUNT ?? "1"));
 const IMAGE_MIME_TYPE = process.env.GEMINI_IMAGE_MIME_TYPE ?? "image/png";
 
-const MAX_RETRIES = Number(process.env.GEMINI_MAX_RETRIES ?? "3");
+const MAX_RETRIES = Number(process.env.GEMINI_MAX_RETRIES ?? "3"); // Retry up to 3 times
 const INITIAL_DELAY_MS = Number(process.env.GEMINI_INITIAL_DELAY_MS ?? "800");
+const INITIAL_DELAY_503_MS = Number(process.env.GEMINI_INITIAL_DELAY_503_MS ?? "2000"); // Longer delay for 503 (service overloaded)
 
 function getApiKey(): string {
   const key = process.env.GEMINI_API_KEY;
@@ -59,6 +76,20 @@ async function ensureImageDir(): Promise<string> {
   return imageDir;
 }
 
+// Simple request queue to prevent overwhelming the API
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 500; // Minimum 500ms between any API requests
+
+async function throttleRequest(): Promise<void> {
+  const now = Date.now();
+  const timeSinceLastRequest = now - lastRequestTime;
+  if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+    const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+    await sleep(waitTime);
+  }
+  lastRequestTime = Date.now();
+}
+
 function buildAxios(apiKey: string): AxiosInstance {
   return axios.create({
     baseURL: GEMINI_API_BASE,
@@ -66,6 +97,134 @@ function buildAxios(apiKey: string): AxiosInstance {
     timeout: 120_000, // Increased to 120 seconds for image generation
     headers: { "Content-Type": "application/json" },
   });
+}
+
+/**
+ * Build axios instance for Vertex AI (Imagen models)
+ * Uses Application Default Credentials (ADC) via access token
+ */
+async function buildVertexAxios(): Promise<AxiosInstance> {
+  if (!GOOGLE_CLOUD_PROJECT_ID) {
+    throw new Error(
+      "GOOGLE_CLOUD_PROJECT_ID or GCP_PROJECT_ID environment variable is required for Imagen models.\n" +
+      "Set it to your Google Cloud project ID (e.g., 'my-project-123456')."
+    );
+  }
+
+  // Try to get access token in order of preference:
+  // 1. Service account JSON string from environment
+  // 2. Service account file from GOOGLE_APPLICATION_CREDENTIALS
+  // 3. gcloud CLI (if available)
+  let accessToken: string | undefined;
+  
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+    console.log("[Vertex AI] Using service account from GOOGLE_APPLICATION_CREDENTIALS_JSON");
+    accessToken = await getAccessTokenFromServiceAccount(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+  } else {
+    accessToken = await getAccessTokenFromADC();
+  }
+
+  if (!accessToken) {
+    throw new Error(
+      "Failed to obtain access token for Vertex AI.\n" +
+      "Please set up authentication using one of these methods:\n" +
+      "1. Set GOOGLE_APPLICATION_CREDENTIALS to path of service account JSON file\n" +
+      "2. Set GOOGLE_APPLICATION_CREDENTIALS_JSON to service account JSON string\n" +
+      "3. Install and configure gcloud CLI: https://cloud.google.com/sdk/docs/install\n" +
+      "   Then run: gcloud auth application-default login"
+    );
+  }
+
+  return axios.create({
+    baseURL: VERTEX_AI_BASE,
+    timeout: 120_000,
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${accessToken}`,
+    },
+  });
+}
+
+/**
+ * Get access token from Application Default Credentials
+ * This works if GOOGLE_APPLICATION_CREDENTIALS is set or gcloud auth is configured
+ */
+async function getAccessTokenFromADC(): Promise<string | undefined> {
+  try {
+    // First, try to use service account from environment variable
+    const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    if (credsPath) {
+      console.log(`[Vertex AI] Using service account from GOOGLE_APPLICATION_CREDENTIALS: ${credsPath}`);
+      return await getAccessTokenFromServiceAccountFile(credsPath);
+    }
+
+    // Fallback: try gcloud CLI to get access token if available
+    try {
+      const { execSync } = require("child_process");
+      const token = execSync("gcloud auth print-access-token", { encoding: "utf-8" }).trim();
+      console.log("[Vertex AI] Using access token from gcloud CLI");
+      return token;
+    } catch (gcloudError) {
+      // gcloud not available or not authenticated - this is fine, we'll use service account
+      console.debug("[Vertex AI] gcloud CLI not available, will use service account credentials");
+    }
+  } catch (error: any) {
+    console.warn("Could not get access token from ADC:", error?.message || error);
+  }
+  return undefined;
+}
+
+/**
+ * Get access token from service account JSON string
+ */
+async function getAccessTokenFromServiceAccount(jsonString: string): Promise<string | undefined> {
+  try {
+    // Try to use google-auth-library if available
+    let JWT: any;
+    try {
+      JWT = require("google-auth-library").JWT;
+    } catch {
+      throw new Error("google-auth-library package is required. Install it with: npm install google-auth-library");
+    }
+    
+    const credentials = JSON.parse(jsonString);
+    const jwtClient = new JWT({
+      email: credentials.client_email,
+      key: credentials.private_key,
+      scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+    });
+    const tokenResponse = await jwtClient.getAccessToken();
+    return tokenResponse?.token || undefined;
+  } catch (error: any) {
+    console.warn("Could not get access token from service account JSON:", error.message);
+    return undefined;
+  }
+}
+
+/**
+ * Get access token from service account file path
+ */
+async function getAccessTokenFromServiceAccountFile(filePath: string): Promise<string | undefined> {
+  try {
+    // Try to use google-auth-library if available
+    let GoogleAuth: any;
+    try {
+      GoogleAuth = require("google-auth-library").GoogleAuth;
+    } catch {
+      throw new Error("google-auth-library package is required. Install it with: npm install google-auth-library");
+    }
+    
+    const auth = new GoogleAuth({
+      keyFile: filePath,
+      scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+    });
+    const client = await auth.getClient();
+    const tokenResponse = await client.getAccessToken();
+    return tokenResponse?.token || undefined;
+  } catch (error: any) {
+    console.warn("Could not get access token from service account file:", error.message);
+    return undefined;
+  }
 }
 
 /**
@@ -82,6 +241,8 @@ async function postWithRetries<T>(
 
   while (true) {
     try {
+      // Throttle requests to prevent overwhelming the API
+      await throttleRequest();
       const resp = await client.post<T>(pathSuffix, payload);
       return resp.data;
     } catch (err: any) {
@@ -101,17 +262,38 @@ async function postWithRetries<T>(
 
       if (attempt < MAX_RETRIES && shouldRetry(status)) {
         attempt += 1;
-        const wait = serverWaitMs ?? jitter(delay);
+        
+        // Use longer delays for 503 errors (service overloaded)
+        const is503 = status === 503;
+        const baseDelay = is503 ? INITIAL_DELAY_503_MS : INITIAL_DELAY_MS;
+        const currentDelay = is503 
+          ? baseDelay * Math.pow(2, attempt - 1) // Exponential backoff: 2s, 4s, 8s, 16s, 32s
+          : delay;
+        
+        const wait = serverWaitMs ?? jitter(currentDelay);
+        
+        const errorType = is503 
+          ? "service overloaded (503)" 
+          : status === 429 
+            ? "rate limited (429)" 
+            : `server error (${status})`;
+        
         console.warn(
-          `Request to ${pathSuffix} failed (status=${status}) — retrying ${attempt}/${MAX_RETRIES} after ${wait}ms`
+          `Request to ${pathSuffix} failed (${errorType}) — retrying ${attempt}/${MAX_RETRIES} after ${Math.round(wait)}ms (${Math.round(wait/1000)}s)`
         );
+        
         // small debug snapshot (truncated) to help diagnosis without dumping everything
         try {
           const dbg = JSON.stringify(respData).slice(0, 1500);
           console.debug(`Response snapshot: ${dbg}${String(respData).length > 1500 ? '...<truncated>' : ''}`);
         } catch {}
+        
         await sleep(wait);
-        delay *= 2;
+        
+        // Update delay for next iteration (only if not 503, as we calculate it differently)
+        if (!is503) {
+          delay *= 2;
+        }
         continue;
       }
 
@@ -182,8 +364,10 @@ export async function callGeminiText(
       
       // If it's a 503 (overloaded) or 429 (rate limit), try next model
       if (status === 503 || status === 429) {
-        console.warn(`[Gemini Text] Model ${candidateModel} unavailable (${status}), trying fallback...`);
-        await sleep(500); // Brief delay before trying next model
+        const errorType = status === 503 ? "overloaded" : "rate limited";
+        console.warn(`[Gemini Text] Model ${candidateModel} ${errorType} (${status}), trying fallback model...`);
+        // Longer delay before trying next model for 503 errors
+        await sleep(status === 503 ? 2000 : 500);
         continue;
       }
       
@@ -244,11 +428,13 @@ export async function callGeminiImage(
   prompt: string,
   model: string = DEFAULT_IMAGE_MODEL
 ): Promise<string> {
-  const apiKey = getApiKey();
-  const client = buildAxios(apiKey);
-
   // build model sequence: explicit param first, then configured fallbacks (unique)
   const fallbacks = Array.from(new Set([model, ...IMAGE_MODEL_FALLBACKS]));
+
+  // We'll build clients dynamically for each fallback since they might mix Imagen and non-Imagen models
+  const apiKey = getApiKey();
+  let geminiClient: AxiosInstance | null = null;
+  let vertexClient: AxiosInstance | null = null;
 
   // helper to produce truncated safe dumps for logs/errors
   const safeDump = (o: any, max = 2000) => {
@@ -273,12 +459,40 @@ export async function callGeminiImage(
   let lastError: any = null;
 
   for (const candidateModel of fallbacks) {
-    const lower = candidateModel.toLowerCase();
-    const usePredict = lower.includes("imagen") || lower.includes("image");
+    const candidateLower = candidateModel.toLowerCase();
+    const candidateIsImagen = candidateLower.includes("imagen");
 
-    const url = usePredict ? `/${candidateModel}:predict` : `/${candidateModel}:generateContent`;
+    // Build appropriate client for this model type
+    let client: AxiosInstance;
+    if (candidateIsImagen) {
+      // Vertex AI client for Imagen models
+      if (!vertexClient) {
+        vertexClient = await buildVertexAxios();
+      }
+      client = vertexClient;
+    } else {
+      // Generative Language API client for other models
+      if (!geminiClient) {
+        geminiClient = buildAxios(apiKey);
+      }
+      client = geminiClient;
+    }
 
-    const payload = usePredict
+    // Build URL based on model type
+    let url: string;
+    if (candidateIsImagen) {
+      // Vertex AI v1 endpoint for Imagen models
+      // Format: /v1/projects/{PROJECT_ID}/locations/us-central1/publishers/google/models/{MODEL}:predict
+      if (!GOOGLE_CLOUD_PROJECT_ID) {
+        throw new Error(`GOOGLE_CLOUD_PROJECT_ID is required for Imagen model: ${candidateModel}`);
+      }
+      url = `/v1/projects/${GOOGLE_CLOUD_PROJECT_ID}/locations/us-central1/publishers/google/models/${candidateModel}:predict`;
+    } else {
+      // Generative Language API v1 endpoint for other models
+      url = `/${candidateModel}:generateContent`;
+    }
+
+    const payload = candidateIsImagen
       ? {
           instances: [
             {
@@ -288,6 +502,7 @@ export async function callGeminiImage(
           parameters: {
             sampleCount: IMAGE_SAMPLE_COUNT,
             mimeType: IMAGE_MIME_TYPE,
+            aspectRatio: "16:9", // Force 16:9 landscape aspect ratio
           },
         }
       : {
@@ -307,11 +522,35 @@ export async function callGeminiImage(
         console.debug(`Gemini (${candidateModel}) response snapshot: ${safeDump(data, 4000)}`);
       } catch {}
 
+      // Extract base64 from API response format
       let base64: string | undefined;
 
-      if (usePredict) {
+      if (candidateIsImagen) {
+        // Imagen models use :predict endpoint with predictions array
         const predictions = Array.isArray(data?.predictions) ? data.predictions : [];
         for (const prediction of predictions) {
+          // Check for RAI filtering
+          if (prediction?.raiFilteredReason) {
+            console.warn(`[Gemini Image] Content filtered: ${prediction.raiFilteredReason}`);
+            continue; // Skip this prediction
+          }
+          
+          // Check if prompt field contains JSON/metadata (warning only - image may still be valid)
+          if (prediction?.prompt) {
+            const promptStr = String(prediction.prompt);
+            // Detect JSON structures, code blocks, or metadata patterns in prompt
+            const hasJson = /\{[\s\S]*"visual_aid"[\s\S]*\}/i.test(promptStr) || 
+                           /\{[\s\S]*"drawing_[^"]*"[\s\S]*\}/i.test(promptStr) ||
+                           /```json/i.test(promptStr) ||
+                           /```[\s\S]*```/.test(promptStr) ||
+                           /`{3,}/.test(promptStr); // Repeated backticks
+            
+            if (hasJson) {
+              console.warn(`[Gemini Image] ⚠️  Detected JSON/metadata in prompt field - image may contain metadata`);
+              console.warn(`[Gemini Image] Prompt preview: ${promptStr.substring(0, 300)}...`);
+            }
+          }
+          
           base64 =
             typeof prediction?.bytesBase64Encoded === "string"
               ? prediction.bytesBase64Encoded
@@ -319,6 +558,7 @@ export async function callGeminiImage(
           if (base64) break;
         }
       } else {
+        // Other models use :generateContent endpoint with candidates array
         const candidates = data?.candidates ?? [];
         for (const cand of candidates) {
           base64 = tryExtractBase64(cand?.content) ?? tryExtractBase64(cand);
@@ -335,16 +575,22 @@ export async function callGeminiImage(
           }
           if (base64) break;
         }
+      }
 
-        // Extra fallback shapes
-        if (!base64) {
-          base64 =
-            tryExtractBase64(data?.attachment) ??
-            tryExtractBase64(data?.attachments) ??
-            tryExtractBase64(data?.outputs) ??
-            tryExtractBase64(data?.result) ??
-            tryExtractBase64(data?.content);
-        }
+      // Extra fallback shapes for different response formats (for both types)
+      if (!base64) {
+        base64 =
+          tryExtractBase64(data?.attachment) ??
+          tryExtractBase64(data?.attachments) ??
+          tryExtractBase64(data?.outputs) ??
+          tryExtractBase64(data?.result) ??
+          tryExtractBase64(data?.content) ??
+          // Support predict-style responses (for Imagen)
+          tryExtractBase64(data?.predictions?.[0]?.bytesBase64Encoded) ??
+          tryExtractBase64(data?.predictions?.[0]) ??
+          // Support generateContent-style responses (for other models)
+          tryExtractBase64(data?.candidates?.[0]?.content) ??
+          tryExtractBase64(data?.candidates?.[0]);
       }
 
       if (!base64) {
@@ -365,7 +611,25 @@ export async function callGeminiImage(
     } catch (err: any) {
       lastError = err;
       const status = err?.status ?? err?.response?.status;
-      console.warn(`Gemini image attempt failed for model=${candidateModel} status=${status} msg=${String(err?.message ?? "").slice(0, 300)}`);
+      const errorMessage = String(err?.message ?? "").toLowerCase();
+      const errorData = err?.response?.data;
+      const errorDataStr = errorData ? JSON.stringify(errorData).toLowerCase() : "";
+      
+      // Detect quota errors specifically
+      const isQuotaError = 
+        status === 429 || 
+        errorMessage.includes("quota") || 
+        errorMessage.includes("exceeded") ||
+        errorDataStr.includes("quota") ||
+        errorDataStr.includes("exceeded") ||
+        (errorData?.error?.message && String(errorData.error.message).toLowerCase().includes("quota"));
+      
+      if (isQuotaError) {
+        console.warn(`[Gemini Image] Model ${candidateModel} quota exceeded, trying fallback model...`);
+      } else {
+        console.warn(`Gemini image attempt failed for model=${candidateModel} status=${status} msg=${String(err?.message ?? "").slice(0, 300)}`);
+      }
+      
       try {
         console.debug(`Failure snapshot: ${safeDump(err?.response?.data ?? err?.message ?? err, 2000)}`);
       } catch {}
@@ -381,15 +645,30 @@ export async function callGeminiImage(
         }
       }
 
-      // small jitter before trying next fallback (avoid immediate hammer)
-      await sleep(300 + Math.floor(Math.random() * 400));
+      // For quota errors (429) or 503 errors (service overloaded), wait longer before trying next model
+      if (isQuotaError || status === 503) {
+        const waitTime = isQuotaError ? 1000 : 2000 + Math.floor(Math.random() * 1000); // 1s for quota, 2-3s for 503
+        const errorType = isQuotaError ? "quota exceeded" : "overloaded (503)";
+        console.warn(`[Gemini Image] Model ${candidateModel} ${errorType}, waiting ${waitTime}ms before trying fallback...`);
+        await sleep(waitTime);
+      } else {
+        // small jitter before trying next fallback (avoid immediate hammer)
+        await sleep(300 + Math.floor(Math.random() * 400));
+      }
       continue;
     }
   }
 
   // exhausted models
   const finalSnapshot = lastError?.response?.data ? safeDump(lastError.response.data, 3000) : String(lastError?.message ?? lastError ?? "no details");
-  throw new Error(`All image model attempts failed. Last response snapshot: ${finalSnapshot}`);
+  const lastErrorMsg = String(lastError?.message ?? "").toLowerCase();
+  const isQuotaExhausted = lastErrorMsg.includes("quota") || lastErrorMsg.includes("exceeded");
+  
+  if (isQuotaExhausted) {
+    throw new Error(`All image model attempts failed due to quota limits. Tried models: ${fallbacks.join(", ")}. Please check your API quota or upgrade your plan. Last error: ${finalSnapshot}`);
+  } else {
+    throw new Error(`All image model attempts failed. Tried models: ${fallbacks.join(", ")}. Last response snapshot: ${finalSnapshot}`);
+  }
 }
 
 export default { callGeminiText, callGeminiImage };

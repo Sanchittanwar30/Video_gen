@@ -357,7 +357,7 @@ function BackgroundTrackComponent({
 	const style = track.style || {};
 
 	if (!rawSrc) {
-		return <AbsoluteFill style={{background: 'linear-gradient(135deg, #1f2937 0%, #0f172a 100%)'}} />;
+		return <AbsoluteFill style={{background: '#000000'}} />;
 	}
 
 	const isVideo = rawSrc.match(/\.(mp4|webm|mov)$/i);

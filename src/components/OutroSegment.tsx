@@ -95,7 +95,7 @@ export const OutroSegment: React.FC<OutroSegmentProps> = ({
 					</p>
 				) : null}
 			</div>
-			{backgroundMusic ? <Audio src={backgroundMusic} volume={0.2} /> : null}
+			{backgroundMusic ? <Audio src={backgroundMusic} volume={0.05} /> : null}
 		</div>
 	);
 };

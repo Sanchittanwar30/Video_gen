@@ -1,291 +1,453 @@
-# Video Generation System Architecture
+# AI Video Generation System Architecture
 
 ## Overview
 
-This system provides a scalable, production-ready video generation pipeline using Remotion, with support for job queues, cloud storage, and real-time notifications.
+This system provides an AI-powered video generation pipeline that creates educational whiteboard-style videos from a simple topic and description. The system uses Google Gemini for content generation, Deepgram for text-to-speech, and Remotion for video rendering with pen-sketch animations.
 
 ## Architecture Diagram
 
 ```
-Client (Browser/Mobile App)
+User Input (Topic + Description)
+    ↓
+Frontend (React/Vite)
     ↓
 Backend API (Express/Node.js)
+    ├─ POST /api/generate-video
+    └─ WebSocket Server (Port 3001)
     ↓
-Job Queue (BullMQ + Redis)
+AI Pipeline:
+    ├─ 1. Structured Plan Generation (Gemini Text API)
+    │  └─ Generates video plan with frames
+    │
+    ├─ 2. Per-Frame Processing:
+    │  ├─ Voiceover Script (Gemini Text API)
+    │  ├─ Image Generation (Gemini Image API)
+    │  ├─ Image Vectorization (PNG → SVG)
+    │  └─ Voiceover Audio (Deepgram TTS)
+    │
+    └─ 3. Video Rendering (Remotion)
+       ├─ SVG Path Animation
+       ├─ Subtitle Overlay
+       └─ Audio Synchronization
     ↓
-Worker Process (Node.js)
-    ↓
-Remotion Render Engine
-    ↓
-Cloud Storage (S3/Supabase)
-    ↓
-Notification (WebSocket/Webhook)
-    ↓
-Client receives final video URL
+Final MP4 Video Output
 ```
 
-## Components
+## System Components
 
-### 1. Backend API (`server/`)
+### 1. Frontend (`frontend/`)
+
+**React + Vite application** that provides:
+- User interface for video generation
+- Real-time progress updates via WebSocket
+- Video preview and playback
+
+**Key Files:**
+- `frontend/src/components/GenerateVideoDemo.tsx` - Main demo component
+- `frontend/src/components/VideoForm.tsx` - Video generation form
+- `frontend/src/api/generateVideoClient.ts` - API client with WebSocket support
+- `frontend/vite.config.ts` - Vite configuration with proxy settings
+
+**Features:**
+- Form-based topic/description input
+- Real-time progress tracking
+- Video preview after generation
+- WebSocket connection for live updates
+
+### 2. Backend API (`server/`)
 
 **Express.js REST API** that handles:
-- Job creation (`POST /api/video/generate`)
-- Status checking (`GET /api/video/status/:jobId`)
-- Job cancellation (`DELETE /api/video/cancel/:jobId`)
+- AI video generation (`POST /api/generate-video`)
+- Health checks (`GET /health`)
+- Static asset serving
 
-**Files:**
-- `server/index.ts` - Main API server
-- `server/routes/video.ts` - Video generation routes
-- `server/config.ts` - Configuration management
-- `server/queue.ts` - BullMQ queue setup
+**Key Files:**
+- `server/index.ts` - Main Express server setup
+- `server/routes/generateVideo.ts` - AI video generation endpoint
+- `server/routes/video.ts` - Alternative video generation route
 - `server/websocket.ts` - WebSocket server for real-time updates
-- `server/services/storage.ts` - Storage abstraction (Supabase/Local)
 
-### 2. Job Queue (`server/queue.ts`)
+**API Endpoints:**
+- `POST /api/generate-video` - Generate AI video from topic
+  - Request: `{ topic: string, description?: string, animateDiagrams?: boolean }`
+  - Response: `{ videoUrl: string, frames: [...] }`
+- `GET /health` - Health check endpoint
+- `WS /ws` - WebSocket connection for progress updates
 
-**BullMQ** with Redis backend for:
-- Job queuing and processing
-- Job status tracking
-- Retry logic with exponential backoff
-- Job history management
+### 3. AI Services
+
+#### 3.1 Structured Plan Generation (`server/services/gemini-structured.ts`)
+
+**Purpose**: Generates structured video plan from topic
+
+**Key Functions:**
+- `generateStructuredJSON()` - Creates video plan with frames
+- `validatePlan()` - Validates generated plan structure
+
+**Process:**
+1. Calls Gemini Text API with structured prompt template
+2. Generates 1-5 whiteboard diagram frames
+3. Each frame includes: `id`, `type`, `prompt_for_image`, `heading`, `duration`
+4. Validates and returns structured plan
+
+**Output Format:**
+```json
+{
+  "title": "Video Title",
+  "frames": [
+    {
+      "id": "frame_1",
+      "type": "whiteboard_diagram",
+      "prompt_for_image": "...",
+      "heading": "...",
+      "duration": 4
+    }
+  ]
+}
+```
+
+#### 3.2 Gemini Integration (`server/services/gemini.ts`)
+
+**Purpose**: Handles all Gemini API interactions
+
+**Key Functions:**
+- `callGeminiText()` - Text generation (scripts, plans)
+- `callGeminiImage()` - Image generation with retry logic
 
 **Features:**
-- Automatic retries (3 attempts)
-- Job progress tracking
-- Job completion/failure events
-- Webhook support
+- Model fallback (imagen-4.0 → imagen-3.0)
+- Retry logic for rate limits
+- Error handling and logging
+- Prompt sanitization
 
-### 3. Worker Process (`workers/video-worker.ts`)
+**Image Generation:**
+- Enhanced prompts for pen-sketch animation
+- Sanitization to remove metadata, Mermaid syntax, "visual_aid"
+- Animation-friendly instructions (bold strokes, distinct paths)
+- Fallback handling for RAI filtering
 
-**Background worker** that:
-- Processes video generation jobs
-- Renders videos using Remotion
-- Uploads videos to cloud storage
-- Sends notifications (webhook/WebSocket)
-- Handles errors and retries
+#### 3.3 Deepgram TTS (`server/services/deepgram.ts`)
+
+**Purpose**: Generates voiceover audio from text
+
+**Key Functions:**
+- `synthesizeSpeech()` - Converts text to speech
+
+**Features:**
+- Female voice (aura-hera-en) for educational content
+- Upbeat mode with SSML prosody tags
+- Pitch adjustment without rate change
+- Fallback models if primary fails
+- MP3 output format
 
 **Configuration:**
-- Concurrency: 1 job at a time (configurable)
-- Rate limiting: 5 jobs per minute
-- Automatic cleanup of local files
+- Model: `aura-hera-en` (energetic female voice)
+- SSML prosody: `pitch="+5%"` for upbeat tone
+- Fallback models prioritized for female voices
 
-### 4. Storage Service (`server/services/storage.ts`)
+#### 3.4 Image Vectorization (`server/services/imageVectorizer.ts`)
 
-**Abstracted storage layer** supporting:
-- **Supabase Storage** - Default, production-ready storage (recommended)
-- **Local Filesystem** - Development/testing fallback
+**Purpose**: Converts PNG images to SVG for animation
 
-**Operations:**
-- Upload rendered videos
-- Generate public URLs
-- Download assets (if needed)
-- Delete files
+**Key Functions:**
+- `vectorizeImageFromUrl()` - Downloads and vectorizes images
 
-### 5. WebSocket Server (`server/websocket.ts`)
-
-**Real-time notifications** for:
-- Job progress updates
-- Job completion
-- Job failures
-- Status changes
+**Process:**
+1. Downloads PNG image from URL
+2. Converts to SVG using vectorization service
+3. Extracts path elements for animation
+4. Saves to `/public/assets/vectorized-*.svg`
 
 **Features:**
-- Client subscription to specific jobs
-- Broadcast to all clients
-- Heartbeat/ping-pong
-- Automatic reconnection handling
+- Path extraction for stroke-by-stroke animation
+- ViewBox preservation
+- Background detection
+- Timeout handling (15 seconds)
 
-### 6. Remotion Render Engine (`render/index.ts`)
+### 4. Remotion Components (`remotion/src/`)
 
-**Template-based video rendering** with:
-- JSON template support
-- Placeholder resolution
-- Multiple track types (background, text, image, audio)
-- Animation support
-- Frame-accurate timing
+#### 4.1 Main Composition (`remotion/src/VideoFromAI.tsx`)
+
+**Purpose**: Orchestrates entire video composition
+
+**Key Features:**
+- Creates sequences for each frame
+- Manages transitions between frames
+- Integrates voiceover, subtitles, and animations
+- Handles frame timing and synchronization
+
+**Structure:**
+- Sequence per frame with proper timing
+- Voiceover audio tracks
+- Subtitle overlays
+- Whiteboard animations
+
+#### 4.2 SVG Animation (`remotion/src/WhiteboardAnimatorPrecise.tsx`)
+
+**Purpose**: Animates SVG paths stroke-by-stroke
+
+**Key Features:**
+- Parses SVG path elements
+- Schedules path drawing animations
+- Supports drawing window animations
+- Handles path complexity and timing
+
+**Animation Process:**
+1. Parse SVG and extract paths
+2. Schedule paths for drawing
+3. Animate each path stroke-by-stroke
+4. Sync with voiceover timing
+
+#### 4.3 Subtitle Overlay (`remotion/src/SubtitleOverlay.tsx`)
+
+**Purpose**: Renders YouTube-style subtitles
+
+**Key Features:**
+- YouTube-style appearance (semi-transparent background)
+- Word-by-word appearance
+- Two-line rolling system
+- Centered at bottom (35% from left)
+- Syncs with voiceover audio
+
+**Styling:**
+- Semi-transparent dark background (rgba(0, 0, 0, 0.8))
+- White text with shadow
+- Roboto font family
+- Smooth fade in/out transitions
+
+### 5. Video Rendering (`server/services/remotion-ai-renderer.ts`)
+
+**Purpose**: Renders final MP4 video using Remotion
+
+**Key Functions:**
+- `renderStoryboardVideo()` - Main rendering function
+
+**Process:**
+1. Creates Remotion composition from video plan
+2. Renders each frame with animations
+3. Combines audio, video, and subtitles
+4. Outputs MP4 file to `/output/ai-storyboard-*.mp4`
+
+**Configuration:**
+- FPS: 30
+- Resolution: 1920x1080
+- Format: MP4 (H.264)
 
 ## Data Flow
 
 ### 1. Video Generation Request
 
 ```
-Client → POST /api/video/generate
-  ↓
-API validates request
-  ↓
-API creates temp files (template.json, input.json)
-  ↓
-API adds job to BullMQ queue
-  ↓
-API returns jobId (202 Accepted)
+User submits form (topic + description)
+    ↓
+Frontend → POST /api/generate-video
+    ↓
+Backend validates request
+    ↓
+Backend starts AI pipeline
+    ↓
+Backend returns 200 OK with video plan
+    (or streams progress via WebSocket)
 ```
 
-### 2. Job Processing
+### 2. AI Pipeline Execution
 
 ```
-Worker picks up job from queue
-  ↓
-Worker updates progress (10%)
-  ↓
-Worker calls Remotion render
-  ↓
-Worker updates progress (30-80%)
-  ↓
-Video rendered to local disk
-  ↓
-Worker uploads to cloud storage
-  ↓
-Worker updates progress (100%)
-  ↓
-Worker sends webhook (if configured)
-  ↓
-Worker broadcasts WebSocket notification
-  ↓
-Worker cleans up local files
+Step 1: Generate Structured Plan
+    ↓
+Gemini Text API → Video Plan (frames[])
+    ↓
+For each frame:
+    ├─ Generate Voiceover Script (Gemini Text)
+    ├─ Generate Image (Gemini Image)
+    ├─ Vectorize Image (if animateDiagrams=true)
+    └─ Generate Audio (Deepgram TTS)
+    ↓
+Step 2: Render Video
+    ↓
+Remotion Composition
+    ├─ Animate SVG paths (if vectorized)
+    ├─ Display subtitles
+    └─ Play voiceover audio
+    ↓
+Step 3: Output
+    ↓
+MP4 file saved to /output/
 ```
 
-### 3. Status Updates
+### 3. Real-Time Updates (WebSocket)
 
 ```
-Client → GET /api/video/status/:jobId
-  ↓
-API queries BullMQ for job status
-  ↓
-API returns: status, progress, result, error
+Client connects to WS /ws
+    ↓
+Server sends progress updates:
+    - Plan generation: 10%
+    - Image generation: 20-40%
+    - Audio generation: 50-70%
+    - Video rendering: 80-95%
+    - Complete: 100%
+    ↓
+Client displays progress in UI
 ```
 
-OR
+## File Structure
 
 ```
-WebSocket connection established
-  ↓
-Client subscribes to jobId
-  ↓
-Server broadcasts updates automatically
+.
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── GenerateVideoDemo.tsx
+│   │   │   └── VideoForm.tsx
+│   │   ├── api/
+│   │   │   └── generateVideoClient.ts
+│   │   └── services/
+│   │       └── api.ts
+│   └── vite.config.ts
+│
+├── server/
+│   ├── index.ts                    # Express server
+│   ├── routes/
+│   │   ├── generateVideo.ts       # Main AI endpoint
+│   │   └── video.ts               # Alternative endpoint
+│   ├── services/
+│   │   ├── gemini-structured.ts   # Plan generation
+│   │   ├── gemini.ts              # Gemini API
+│   │   ├── deepgram.ts            # TTS
+│   │   ├── imageVectorizer.ts     # PNG → SVG
+│   │   └── remotion-ai-renderer.ts # Video rendering
+│   └── websocket.ts               # WebSocket server
+│
+├── remotion/
+│   └── src/
+│       ├── VideoFromAI.tsx        # Main composition
+│       ├── WhiteboardAnimatorPrecise.tsx # SVG animation
+│       └── SubtitleOverlay.tsx    # Subtitles
+│
+├── public/
+│   └── assets/
+│       ├── gemini-images/         # Generated images
+│       ├── vectorized/            # SVG files
+│       └── voiceovers/            # Audio files
+│
+└── output/
+    └── ai-storyboard-*.mp4        # Final videos
 ```
 
 ## Environment Configuration
 
-See `.env.example` for all configuration options:
+Required environment variables:
 
 ```bash
 # Server
 PORT=3000
 NODE_ENV=development
 
-# Redis
-REDIS_HOST=localhost
-REDIS_PORT=6379
+# Gemini API
+GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
+GEMINI_API_KEY=your-gemini-api-key
 
-# Storage (S3 or Supabase)
-ASSET_STORAGE_PROVIDER=s3
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-AWS_S3_BUCKET=...
+# Deepgram TTS
+DEEPGRAM_API_KEY=your-deepgram-api-key
+DEEPGRAM_TTS_MODEL=aura-hera-en
 
-# Or Supabase
-SUPABASE_URL=...
-SUPABASE_KEY=...
-SUPABASE_BUCKET=videos
+# Image Vectorization
+VECTORIZER_API_URL=https://vectorizer-api-url
+VECTORIZER_API_KEY=your-vectorizer-key
+
+# Optional
+USE_FIXED_TEST_IMAGE=false
+ANIMATE_DIAGRAMS=true
 ```
 
-## Deployment
+## API Request/Response
 
-### Development
+### Request
 
 ```bash
-# Terminal 1: Start Redis
-redis-server
+POST /api/generate-video
+Content-Type: application/json
 
-# Terminal 2: Start API
-npm run dev:api
-
-# Terminal 3: Start Worker
-npm run dev:worker
+{
+  "topic": "Machine Learning Basics",
+  "description": "Explain supervised and unsupervised learning",
+  "animateDiagrams": true,
+  "durationSeconds": 60
+}
 ```
 
-### Production (Docker)
+### Response
 
-```bash
-docker-compose up -d
+```json
+{
+  "videoUrl": "/output/ai-storyboard-1234567890.mp4",
+  "title": "Machine Learning Basics",
+  "frames": [
+    {
+      "id": "frame_1",
+      "type": "whiteboard_diagram",
+      "heading": "Introduction to Machine Learning",
+      "asset": "/assets/gemini-images/gemini-image-xxx.png",
+      "vectorizedAsset": "/assets/vectorized-xxx.svg",
+      "voiceoverUrl": "/assets/voiceovers/voiceover-xxx.mp3",
+      "voiceoverScript": "Machine learning is a subset of artificial intelligence...",
+      "duration": 4
+    }
+  ]
+}
 ```
-
-### Production (Manual)
-
-```bash
-# Start API (PM2 recommended)
-pm2 start server/index.ts --name video-api
-
-# Start Worker (PM2 recommended)
-pm2 start workers/video-worker.ts --name video-worker
-```
-
-## Scaling
-
-### Horizontal Scaling
-
-- **API servers**: Stateless, can run multiple instances behind a load balancer
-- **Workers**: Can run multiple workers for parallel processing
-- **Redis**: Use Redis Cluster for high availability
-
-### Vertical Scaling
-
-- Increase worker concurrency (currently 1)
-- Increase rate limits
-- Use faster storage (SSD, NVMe)
-- Optimize Remotion rendering settings
-
-## Monitoring
-
-### Job Metrics
-
-- Jobs queued
-- Jobs in progress
-- Jobs completed
-- Jobs failed
-- Average processing time
-
-### System Metrics
-
-- Redis connection status
-- Worker health
-- Storage usage
-- API response times
 
 ## Error Handling
 
-### Job Failures
+### API Errors
+- **400 Bad Request**: Missing required fields (topic)
+- **500 Internal Server Error**: AI generation failure, rendering failure
+- **503 Service Unavailable**: Gemini API rate limits, service overloaded
 
-- Automatic retries (3 attempts with exponential backoff)
-- Failed jobs stored for 7 days
-- Error details included in job status
-- Webhook notifications on failure
+### Retry Logic
+- Gemini Image API: 3 attempts with fallback models
+- Deepgram TTS: Multiple model fallbacks
+- Image Vectorization: 15-second timeout
 
-### Worker Failures
+### Error Recovery
+- Failed image generation: Falls back to imagen-3.0
+- Failed voiceover: Continues without audio
+- Failed vectorization: Uses static image instead of animation
 
-- Workers automatically reconnect to Redis
-- Jobs remain in queue if worker crashes
-- Failed jobs can be manually retried
+## Performance Considerations
+
+### Generation Time
+- Plan generation: ~5-10 seconds
+- Image generation: ~10-20 seconds per frame
+- Audio generation: ~5-10 seconds per frame
+- Vectorization: ~5-15 seconds per image
+- Video rendering: ~30-60 seconds for 60-second video
+
+**Total**: ~2-5 minutes for a typical 60-second video
+
+### Optimization
+- Parallel frame processing (where possible)
+- Image caching
+- Audio caching
+- Incremental rendering
 
 ## Security Considerations
 
-1. **API Authentication**: Add authentication middleware (JWT, API keys)
-2. **Rate Limiting**: Implement rate limiting per user/IP
-3. **Input Validation**: Validate all template/input data
-4. **Storage Security**: Use signed URLs for private videos
-5. **Webhook Security**: Verify webhook signatures
-6. **Environment Variables**: Never commit secrets to git
+1. **API Keys**: Stored in environment variables, never committed
+2. **Input Validation**: All user inputs validated and sanitized
+3. **Rate Limiting**: Implemented for API endpoints
+4. **File Uploads**: Validated file types and sizes
+5. **CORS**: Configured for frontend origin only
 
 ## Future Enhancements
 
-- [ ] Database for job history
+- [ ] Database for video history
 - [ ] User authentication/authorization
-- [ ] Template management API
-- [ ] Preview/thumbnail generation
-- [ ] Video transcoding (multiple formats)
-- [ ] CDN integration
+- [ ] Batch video generation
+- [ ] Custom voice selection
+- [ ] Multiple language support
+- [ ] Video editing capabilities
 - [ ] Analytics dashboard
-- [ ] AI-powered template suggestions
-- [ ] Batch processing
-- [ ] Scheduled jobs
-
+- [ ] CDN integration for faster delivery
+- [ ] Preview generation (thumbnails)
+- [ ] Video compression optimization

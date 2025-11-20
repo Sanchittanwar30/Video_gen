@@ -7,12 +7,13 @@ function App() {
     <div className="app">
       <div className="container">
         <header className="header">
-          <h1>🎬 Video Generation App</h1>
-          <p>Turn your lesson topics into polished narrated videos with AI-drafted visuals.</p>
+          <h1>🎬 Video Generation Studio</h1>
+          <p>Transform your lesson topics into polished narrated videos with AI-powered visuals and animations</p>
         </header>
         <GenerateVideoDemo />
-        <div style={{ marginTop: '40px', borderTop: '2px solid #e5e7eb', paddingTop: '40px' }}>
-          <h2 style={{ marginBottom: '20px' }}>🖊️ Pen Sketch Animation Test</h2>
+        <div className="pen-sketch-section">
+          <h2 className="pen-sketch-title">🖊️ Pen Sketch Animation</h2>
+          <p className="pen-sketch-description">Test the enhanced pen sketch animation with your own images</p>
           <PenSketchTest />
         </div>
       </div>

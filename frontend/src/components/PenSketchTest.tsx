@@ -15,6 +15,13 @@ export default function PenSketchTest() {
 	const [error, setError] = useState<string | null>(null);
 	const [voiceoverScript, setVoiceoverScript] = useState('');
 	const [generateVoiceover, setGenerateVoiceover] = useState(true);
+	// Enhanced algorithm parameters (inspired by image-to-animation-offline)
+	const [splitLen, setSplitLen] = useState(10);  // Path segmentation granularity
+	const [objSkipRate, setObjSkipRate] = useState(8);  // Object drawing speed (lower = slower)
+	const [bckSkipRate, setBckSkipRate] = useState(14);  // Background drawing speed (lower = slower)
+	const [frameRate, setFrameRate] = useState(25);  // Video frame rate
+	const [mainImgDuration, setMainImgDuration] = useState(5.0);  // Duration per image (seconds) - increased for better animation
+	// Legacy parameters (kept for compatibility)
 	const [sketchStyle, setSketchStyle] = useState('clean');
 	const [strokeSpeed, setStrokeSpeed] = useState(3.0);
 	const [lineThickness, setLineThickness] = useState(3);
@@ -115,10 +122,15 @@ export default function PenSketchTest() {
 				uploadedFiles.forEach(file => {
 					formData.append('imageFiles', file);
 				});
-				formData.append('fps', '30');
-				formData.append('durationPerImage', '4.0');
+				// Enhanced algorithm parameters
+				formData.append('splitLen', splitLen.toString());
+				formData.append('fps', frameRate.toString());
+				formData.append('objSkipRate', objSkipRate.toString());
+				formData.append('bckSkipRate', bckSkipRate.toString());
+				formData.append('durationPerImage', mainImgDuration.toString());
 				formData.append('voiceoverScript', voiceoverScript || '');
 				formData.append('generateVoiceover', generateVoiceover.toString());
+				// Legacy parameters (for compatibility)
 				formData.append('sketchStyle', sketchStyle);
 				formData.append('strokeSpeed', strokeSpeed.toString());
 				formData.append('lineThickness', lineThickness.toString());
@@ -138,10 +150,15 @@ export default function PenSketchTest() {
 				// Use existing image URLs
 				const response = await axios.post('/api/pen-sketch/animate', {
 					imageUrls: selectedImages,
-					fps: 30,
-					durationPerImage: 4.0,
+					// Enhanced algorithm parameters
+					splitLen,
+					fps: frameRate,
+					objSkipRate,
+					bckSkipRate,
+					durationPerImage: mainImgDuration,
 					voiceoverScript: voiceoverScript || undefined,
 					generateVoiceover,
+					// Legacy parameters (for compatibility)
 					sketchStyle,
 					strokeSpeed,
 					lineThickness,
@@ -160,26 +177,57 @@ export default function PenSketchTest() {
 	};
 
 	return (
-		<div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-			<h2>Pen Sketch Animation Test</h2>
+		<div style={{ 
+			padding: '20px', 
+			maxWidth: '1200px', 
+			margin: '0 auto',
+			color: 'var(--text-primary)'
+		}}>
+			<h2 style={{ 
+				color: 'var(--text-primary)',
+				marginBottom: 'var(--spacing-lg)'
+			}}>Pen Sketch Animation Test</h2>
 
 			{/* Mode Selection */}
-			<div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
-				<label style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+			<div style={{ 
+				marginBottom: '20px', 
+				padding: '15px', 
+				backgroundColor: 'var(--bg-card)',
+				backdropFilter: 'blur(10px)',
+				border: '1px solid var(--border-primary)',
+				borderRadius: 'var(--radius-lg)',
+				color: 'var(--text-primary)'
+			}}>
+				<label style={{ 
+					display: 'flex', 
+					alignItems: 'center', 
+					gap: '15px',
+					color: 'var(--text-primary)',
+					cursor: 'pointer'
+				}}>
 					<input
 						type="radio"
 						name="mode"
 						checked={uploadMode === 'select'}
 						onChange={() => setUploadMode('select')}
+						style={{ cursor: 'pointer' }}
 					/>
 					<span>Select from existing images</span>
 				</label>
-				<label style={{ display: 'flex', alignItems: 'center', gap: '15px', marginTop: '10px' }}>
+				<label style={{ 
+					display: 'flex', 
+					alignItems: 'center', 
+					gap: '15px', 
+					marginTop: '10px',
+					color: 'var(--text-primary)',
+					cursor: 'pointer'
+				}}>
 					<input
 						type="radio"
 						name="mode"
 						checked={uploadMode === 'upload'}
 						onChange={() => setUploadMode('upload')}
+						style={{ cursor: 'pointer' }}
 					/>
 					<span>Upload new images</span>
 				</label>
@@ -188,7 +236,9 @@ export default function PenSketchTest() {
 			{/* Image Selection Mode */}
 			{uploadMode === 'select' && (
 				<div style={{ marginBottom: '20px' }}>
-					<h3>Select Images ({selectedImages.length} selected)</h3>
+					<h3 style={{ color: 'var(--text-primary)', marginBottom: 'var(--spacing-md)' }}>
+						Select Images ({selectedImages.length} selected)
+					</h3>
 					<div style={{ 
 						display: 'grid', 
 						gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
@@ -200,12 +250,17 @@ export default function PenSketchTest() {
 								key={idx}
 								onClick={() => toggleImage(img.url)}
 								style={{
-									border: selectedImages.includes(img.url) ? '3px solid #2563eb' : '2px solid #ccc',
-									borderRadius: '8px',
+									border: selectedImages.includes(img.url) 
+										? '3px solid var(--color-primary)' 
+										: '2px solid var(--border-primary)',
+									borderRadius: 'var(--radius-md)',
 									padding: '10px',
 									cursor: 'pointer',
-									backgroundColor: selectedImages.includes(img.url) ? '#eff6ff' : '#fff',
-									transition: 'all 0.2s',
+									backgroundColor: selectedImages.includes(img.url) 
+										? 'var(--bg-card-hover)' 
+										: 'var(--bg-card)',
+									backdropFilter: 'blur(10px)',
+									transition: 'all var(--transition-base)',
 								}}
 							>
 								<img 
@@ -222,7 +277,8 @@ export default function PenSketchTest() {
 									marginTop: '8px', 
 									fontSize: '12px',
 									textAlign: 'center',
-									wordBreak: 'break-word'
+									wordBreak: 'break-word',
+									color: 'var(--text-primary)'
 								}}>
 									{img.filename}
 								</div>
@@ -234,8 +290,18 @@ export default function PenSketchTest() {
 
 			{/* File Upload Mode */}
 			{uploadMode === 'upload' && (
-				<div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f0f9ff', borderRadius: '8px' }}>
-					<h3>Upload Images ({uploadedFiles.length} files selected)</h3>
+				<div style={{ 
+					marginBottom: '20px', 
+					padding: '15px', 
+					backgroundColor: 'var(--bg-card)',
+					backdropFilter: 'blur(10px)',
+					border: '1px solid var(--border-primary)',
+					borderRadius: 'var(--radius-lg)',
+					color: 'var(--text-primary)'
+				}}>
+					<h3 style={{ color: 'var(--text-primary)', marginBottom: 'var(--spacing-md)' }}>
+						Upload Images ({uploadedFiles.length} files selected)
+					</h3>
 					<div style={{ marginBottom: '10px' }}>
 						<input
 							type="file"
@@ -246,19 +312,26 @@ export default function PenSketchTest() {
 								width: '100%',
 								padding: '10px',
 								marginTop: '10px',
-								border: '2px dashed #2563eb',
-								borderRadius: '8px',
+								border: '2px dashed var(--color-primary)',
+								borderRadius: 'var(--radius-md)',
 								cursor: 'pointer',
-								backgroundColor: '#fff',
+								backgroundColor: 'var(--bg-input)',
+								color: 'var(--text-primary)',
 							}}
 						/>
-						<div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+						<div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '5px' }}>
 							💡 You can select multiple images at once (Ctrl+Click or Cmd+Click)
 						</div>
 					</div>
 					{uploadedFiles.length > 0 && (
 						<div style={{ marginTop: '15px' }}>
-							<p style={{ marginBottom: '10px', fontWeight: 'bold' }}>Uploaded files ({uploadedFiles.length}):</p>
+							<p style={{ 
+								marginBottom: '10px', 
+								fontWeight: 'bold',
+								color: 'var(--text-primary)'
+							}}>
+								Uploaded files ({uploadedFiles.length}):
+							</p>
 							<div style={{ 
 								display: 'grid', 
 								gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
@@ -269,16 +342,27 @@ export default function PenSketchTest() {
 							}}>
 								{uploadedFiles.map((file, idx) => (
 									<div key={idx} style={{
-										border: '2px solid #2563eb',
-										borderRadius: '8px',
+										border: '2px solid var(--color-primary)',
+										borderRadius: 'var(--radius-md)',
 										padding: '10px',
 										textAlign: 'center',
-										backgroundColor: '#fff',
+										backgroundColor: 'var(--bg-card)',
+										backdropFilter: 'blur(10px)',
+										color: 'var(--text-primary)',
 									}}>
-										<div style={{ fontSize: '12px', wordBreak: 'break-word', fontWeight: 'bold' }}>
+										<div style={{ 
+											fontSize: '12px', 
+											wordBreak: 'break-word', 
+											fontWeight: 'bold',
+											color: 'var(--text-primary)'
+										}}>
 											{file.name.length > 20 ? file.name.substring(0, 20) + '...' : file.name}
 										</div>
-										<div style={{ fontSize: '10px', color: '#666', marginTop: '5px' }}>
+										<div style={{ 
+											fontSize: '10px', 
+											color: 'var(--text-secondary)', 
+											marginTop: '5px' 
+										}}>
 											{(file.size / 1024).toFixed(1)} KB
 										</div>
 										<button
@@ -289,11 +373,12 @@ export default function PenSketchTest() {
 												marginTop: '5px',
 												padding: '4px 8px',
 												fontSize: '10px',
-												backgroundColor: '#ef4444',
-												color: 'white',
+												backgroundColor: 'var(--color-error)',
+												color: 'var(--text-primary)',
 												border: 'none',
-												borderRadius: '4px',
+												borderRadius: 'var(--radius-sm)',
 												cursor: 'pointer',
+												fontWeight: '600',
 											}}
 										>
 											Remove
@@ -307,18 +392,38 @@ export default function PenSketchTest() {
 			)}
 
 			{/* Voiceover Options */}
-			<div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
-				<label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+			<div style={{ 
+				marginBottom: '20px', 
+				padding: '15px', 
+				backgroundColor: 'var(--bg-card)',
+				backdropFilter: 'blur(10px)',
+				border: '1px solid var(--border-primary)',
+				borderRadius: 'var(--radius-lg)',
+				color: 'var(--text-primary)'
+			}}>
+				<label style={{ 
+					display: 'flex', 
+					alignItems: 'center', 
+					gap: '10px', 
+					marginBottom: '10px',
+					color: 'var(--text-primary)',
+					cursor: 'pointer'
+				}}>
 					<input
 						type="checkbox"
 						checked={generateVoiceover}
 						onChange={(e) => setGenerateVoiceover(e.target.checked)}
+						style={{ cursor: 'pointer' }}
 					/>
 					<span>Generate Voiceover</span>
 				</label>
 				{generateVoiceover && (
 					<div>
-						<label style={{ display: 'block', marginBottom: '5px' }}>
+						<label style={{ 
+							display: 'block', 
+							marginBottom: '5px',
+							color: 'var(--text-primary)'
+						}}>
 							Voiceover Script (optional - auto-generated if empty):
 						</label>
 						<textarea
@@ -329,76 +434,196 @@ export default function PenSketchTest() {
 								width: '100%',
 								minHeight: '80px',
 								padding: '8px',
-								borderRadius: '4px',
-								border: '1px solid #ccc',
+								borderRadius: 'var(--radius-md)',
+								border: '1px solid var(--border-primary)',
+								backgroundColor: 'var(--bg-input)',
+								color: 'var(--text-primary)',
+								fontFamily: 'inherit',
 							}}
 						/>
 					</div>
 				)}
 			</div>
 
-			{/* Animation Options */}
-			<div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f0f9ff', borderRadius: '8px' }}>
-				<h4 style={{ marginTop: 0, marginBottom: '15px' }}>Animation Settings</h4>
+			{/* Enhanced Animation Options (inspired by image-to-animation-offline) */}
+			<div style={{ 
+				marginBottom: '20px', 
+				padding: '15px', 
+				backgroundColor: 'var(--bg-card)',
+				backdropFilter: 'blur(10px)',
+				border: '1px solid var(--border-primary)',
+				borderRadius: 'var(--radius-lg)',
+				color: 'var(--text-primary)'
+			}}>
+				<h4 style={{ 
+					marginTop: 0, 
+					marginBottom: '15px',
+					color: 'var(--text-primary)'
+				}}>
+					Enhanced Sketching Settings
+				</h4>
+				<p style={{ 
+					fontSize: '12px', 
+					color: 'var(--text-secondary)', 
+					marginBottom: '15px', 
+					fontStyle: 'italic' 
+				}}>
+					Based on image-to-animation-offline algorithm with object/background separation
+				</p>
 				
 				<div style={{ marginBottom: '15px' }}>
-					<label style={{ display: 'block', marginBottom: '5px' }}>
-						Sketch Style:
-					</label>
-					<select
-						value={sketchStyle}
-						onChange={(e) => setSketchStyle(e.target.value)}
-						style={{
-							width: '100%',
-							padding: '8px',
-							borderRadius: '4px',
-							border: '1px solid #ccc',
-						}}
-					>
-						<option value="clean">Clean (Whiteboard style)</option>
-						<option value="artistic">Artistic (Edge detection)</option>
-						<option value="bold">Bold (Thick lines)</option>
-					</select>
-				</div>
-
-				<div style={{ marginBottom: '15px' }}>
-					<label style={{ display: 'block', marginBottom: '5px' }}>
-						Stroke Speed: {strokeSpeed.toFixed(1)} pixels/frame
+					<label style={{ 
+						display: 'block', 
+						marginBottom: '5px',
+						color: 'var(--text-primary)'
+					}}>
+						Split Length: {splitLen} (Path segmentation granularity)
 					</label>
 					<input
 						type="range"
-						min="1.0"
-						max="6.0"
-						step="0.5"
-						value={strokeSpeed}
-						onChange={(e) => setStrokeSpeed(parseFloat(e.target.value))}
-						style={{ width: '100%' }}
-					/>
-					<div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
-						Lower = slower, more detailed | Higher = faster, smoother
-					</div>
-				</div>
-
-				<div style={{ marginBottom: '15px' }}>
-					<label style={{ display: 'block', marginBottom: '5px' }}>
-						Line Thickness: {lineThickness}px
-					</label>
-					<input
-						type="range"
-						min="1"
-						max="5"
+						min="5"
+						max="30"
 						step="1"
-						value={lineThickness}
-						onChange={(e) => setLineThickness(parseInt(e.target.value))}
+						value={splitLen}
+						onChange={(e) => setSplitLen(parseInt(e.target.value))}
 						style={{ width: '100%' }}
 					/>
-					<div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
-						Thinner = more detailed | Thicker = bolder
+					<div style={{ 
+						fontSize: '12px', 
+						color: 'var(--text-secondary)', 
+						marginTop: '5px' 
+					}}>
+						Smaller = more segments, finer control | Larger = fewer segments, faster
 					</div>
 				</div>
 
 				<div style={{ marginBottom: '15px' }}>
-					<label style={{ display: 'block', marginBottom: '5px' }}>
+					<label style={{ 
+						display: 'block', 
+						marginBottom: '5px',
+						color: 'var(--text-primary)'
+					}}>
+						Object Skip Rate: {objSkipRate} (Object drawing speed)
+					</label>
+					<input
+						type="range"
+						min="3"
+						max="15"
+						step="1"
+						value={objSkipRate}
+						onChange={(e) => setObjSkipRate(parseInt(e.target.value))}
+						style={{ width: '100%' }}
+					/>
+					<div style={{ 
+						fontSize: '12px', 
+						color: 'var(--text-secondary)', 
+						marginTop: '5px' 
+					}}>
+						Lower = slower, more detailed object drawing | Higher = faster object drawing
+					</div>
+				</div>
+
+				<div style={{ marginBottom: '15px' }}>
+					<label style={{ 
+						display: 'block', 
+						marginBottom: '5px',
+						color: 'var(--text-primary)'
+					}}>
+						Background Skip Rate: {bckSkipRate} (Background drawing speed)
+					</label>
+					<input
+						type="range"
+						min="8"
+						max="20"
+						step="1"
+						value={bckSkipRate}
+						onChange={(e) => setBckSkipRate(parseInt(e.target.value))}
+						style={{ width: '100%' }}
+					/>
+					<div style={{ 
+						fontSize: '12px', 
+						color: 'var(--text-secondary)', 
+						marginTop: '5px' 
+					}}>
+						Lower = slower background | Higher = faster background (typically faster than objects)
+					</div>
+				</div>
+
+				<div style={{ marginBottom: '15px' }}>
+					<label style={{ 
+						display: 'block', 
+						marginBottom: '5px',
+						color: 'var(--text-primary)'
+					}}>
+						Frame Rate: {frameRate} FPS
+					</label>
+					<input
+						type="range"
+						min="15"
+						max="30"
+						step="5"
+						value={frameRate}
+						onChange={(e) => setFrameRate(parseInt(e.target.value))}
+						style={{ width: '100%' }}
+					/>
+				</div>
+
+				<div style={{ 
+					marginBottom: '15px',
+					padding: '12px',
+					backgroundColor: 'rgba(99, 102, 241, 0.1)',
+					border: '2px solid var(--color-primary)',
+					borderRadius: 'var(--radius-md)'
+				}}>
+					<label style={{ 
+						display: 'block', 
+						marginBottom: '8px',
+						color: 'var(--text-primary)',
+						fontSize: '16px',
+						fontWeight: 'bold'
+					}}>
+						⏱️ Animation Duration: {mainImgDuration.toFixed(1)} seconds per image
+					</label>
+					<input
+						type="range"
+						min="2.0"
+						max="15.0"
+						step="0.5"
+						value={mainImgDuration}
+						onChange={(e) => setMainImgDuration(parseFloat(e.target.value))}
+						style={{ 
+							width: '100%',
+							height: '8px',
+							cursor: 'pointer'
+						}}
+					/>
+					<div style={{ 
+						display: 'flex',
+						justifyContent: 'space-between',
+						fontSize: '11px', 
+						color: 'var(--text-secondary)', 
+						marginTop: '5px' 
+					}}>
+						<span>2.0s (fast)</span>
+						<span>Recommended: 5-8s</span>
+						<span>15.0s (slow)</span>
+					</div>
+					<div style={{ 
+						fontSize: '12px', 
+						color: 'var(--text-primary)', 
+						marginTop: '8px',
+						fontStyle: 'italic'
+					}}>
+						💡 Longer duration = more time to see progressive drawing + final image display
+					</div>
+				</div>
+
+				<div style={{ marginBottom: '15px' }}>
+					<label style={{ 
+						display: 'block', 
+						marginBottom: '5px',
+						color: 'var(--text-primary)'
+					}}>
 						Video Quality:
 					</label>
 					<select
@@ -407,8 +632,11 @@ export default function PenSketchTest() {
 						style={{
 							width: '100%',
 							padding: '8px',
-							borderRadius: '4px',
-							border: '1px solid #ccc',
+							borderRadius: 'var(--radius-md)',
+							border: '1px solid var(--border-primary)',
+							backgroundColor: 'var(--bg-input)',
+							color: 'var(--text-primary)',
+							fontFamily: 'inherit',
 						}}
 					>
 						<option value="high">High (Best quality, larger file)</option>
@@ -418,7 +646,11 @@ export default function PenSketchTest() {
 				</div>
 
 				<div>
-					<label style={{ display: 'block', marginBottom: '5px' }}>
+					<label style={{ 
+						display: 'block', 
+						marginBottom: '5px',
+						color: 'var(--text-primary)'
+					}}>
 						Video Resolution: {videoWidth}x{videoHeight}
 					</label>
 					<select
@@ -431,15 +663,22 @@ export default function PenSketchTest() {
 						style={{
 							width: '100%',
 							padding: '8px',
-							borderRadius: '4px',
-							border: '1px solid #ccc',
+							borderRadius: 'var(--radius-md)',
+							border: '1px solid var(--border-primary)',
+							backgroundColor: 'var(--bg-input)',
+							color: 'var(--text-primary)',
+							fontFamily: 'inherit',
 						}}
 					>
 						<option value="1920x1080">1920x1080 (Full HD - Recommended)</option>
 						<option value="1280x720">1280x720 (HD)</option>
 						<option value="854x480">854x480 (SD)</option>
 					</select>
-					<div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+					<div style={{ 
+						fontSize: '12px', 
+						color: 'var(--text-secondary)', 
+						marginTop: '5px' 
+					}}>
 						Higher resolution = better quality but larger file size
 					</div>
 				</div>
@@ -452,12 +691,19 @@ export default function PenSketchTest() {
 				style={{
 					padding: '12px 24px',
 					fontSize: '16px',
-					backgroundColor: loading || (selectedImages.length === 0 && uploadedFiles.length === 0) ? '#ccc' : '#2563eb',
-					color: 'white',
+					background: loading || (selectedImages.length === 0 && uploadedFiles.length === 0) 
+						? 'var(--bg-tertiary)' 
+						: 'var(--gradient-primary)',
+					color: 'var(--text-primary)',
 					border: 'none',
-					borderRadius: '6px',
+					borderRadius: 'var(--radius-full)',
 					cursor: loading || (selectedImages.length === 0 && uploadedFiles.length === 0) ? 'not-allowed' : 'pointer',
 					marginBottom: '20px',
+					fontWeight: '600',
+					boxShadow: loading || (selectedImages.length === 0 && uploadedFiles.length === 0) 
+						? 'none' 
+						: 'var(--shadow-glow)',
+					transition: 'all var(--transition-base)',
 				}}
 			>
 				{loading 
@@ -470,10 +716,13 @@ export default function PenSketchTest() {
 			{error && (
 				<div style={{ 
 					padding: '12px', 
-					backgroundColor: '#fee2e2', 
-					color: '#991b1b',
-					borderRadius: '6px',
-					marginBottom: '20px'
+					backgroundColor: 'rgba(239, 68, 68, 0.15)',
+					backdropFilter: 'blur(10px)',
+					border: '1px solid rgba(239, 68, 68, 0.3)',
+					color: '#fca5a5',
+					borderRadius: 'var(--radius-md)',
+					marginBottom: '20px',
+					fontWeight: '500'
 				}}>
 					{error}
 				</div>
@@ -483,16 +732,29 @@ export default function PenSketchTest() {
 			{status && (
 				<div style={{ 
 					padding: '15px', 
-					backgroundColor: '#f0f9ff', 
-					borderRadius: '8px',
-					marginBottom: '20px'
+					backgroundColor: 'var(--bg-card)',
+					backdropFilter: 'blur(10px)',
+					border: '1px solid var(--border-primary)',
+					borderRadius: 'var(--radius-lg)',
+					marginBottom: '20px',
+					color: 'var(--text-primary)'
 				}}>
-					<h3>Job Status</h3>
-					<div>Status: <strong>{status.status}</strong></div>
+					<h3 style={{ color: 'var(--text-primary)', marginBottom: 'var(--spacing-md)' }}>
+						Job Status
+					</h3>
+					<div style={{ color: 'var(--text-primary)' }}>
+						Status: <strong style={{ color: 'var(--color-primary-light)' }}>{status.status}</strong>
+					</div>
 					{status.voiceoverScript && (
 						<div style={{ marginTop: '10px' }}>
-							<strong>Voiceover:</strong>
-							<div style={{ marginTop: '5px', fontStyle: 'italic' }}>{status.voiceoverScript}</div>
+							<strong style={{ color: 'var(--text-primary)' }}>Voiceover:</strong>
+							<div style={{ 
+								marginTop: '5px', 
+								fontStyle: 'italic',
+								color: 'var(--text-secondary)'
+							}}>
+								{status.voiceoverScript}
+							</div>
 						</div>
 					)}
 					{status.videoUrl && status.status === 'completed' && (
@@ -509,10 +771,13 @@ export default function PenSketchTest() {
 									style={{
 										display: 'inline-block',
 										padding: '8px 16px',
-										backgroundColor: '#2563eb',
-										color: 'white',
+										background: 'var(--gradient-primary)',
+										color: 'var(--text-primary)',
 										textDecoration: 'none',
-										borderRadius: '4px',
+										borderRadius: 'var(--radius-full)',
+										fontWeight: '600',
+										boxShadow: 'var(--shadow-md)',
+										transition: 'all var(--transition-base)',
 									}}
 								>
 									Download Video
@@ -524,10 +789,13 @@ export default function PenSketchTest() {
 									style={{
 										display: 'inline-block',
 										padding: '8px 16px',
-										backgroundColor: '#10b981',
-										color: 'white',
+										background: 'var(--gradient-secondary)',
+										color: 'var(--text-primary)',
 										textDecoration: 'none',
-										borderRadius: '4px',
+										borderRadius: 'var(--radius-full)',
+										fontWeight: '600',
+										boxShadow: 'var(--shadow-md)',
+										transition: 'all var(--transition-base)',
 									}}
 								>
 									Open in New Tab
@@ -538,7 +806,7 @@ export default function PenSketchTest() {
 					{status.error && (
 						<div style={{ 
 							marginTop: '10px', 
-							color: '#dc2626',
+							color: '#fca5a5',
 							fontWeight: 'bold'
 						}}>
 							Error: {status.error}

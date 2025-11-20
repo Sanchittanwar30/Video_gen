@@ -1,0 +1,48 @@
+graph LR
+    subgraph Client
+        VF[VideoForm UI]
+        PS[PenSketchTest UI]
+    end
+
+    subgraph Backend (Node.js/Express)
+        GV[/POST /generateVideo/]
+        PSRoute[/POST /api/pen-sketch/animate/]
+        AIRoute[/POST /api/ai/generate-content/]
+        Services[Services: gemini.ts\ngemini-structured.ts\ndeepgram.ts\nimageVectorizer.ts]
+        Jobs[(In-memory pen sketch jobs)]
+        Renderer[Remotion Renderer]
+    end
+
+    subgraph External AI/Infra
+        GeminiText[Gemini Text API]
+        GeminiImagen[Gemini Imagen / Vertex AI]
+        Deepgram[Deepgram TTS]
+        Colab[Colab FastAPI (pen-sketch)]
+        VectorizerSvc[Vectorizer Service]
+    end
+
+    subgraph Storage
+        Public[/public/assets/.../]
+        Output[/output/.../]
+        Temp[(temp/pen-sketch/...)]
+    end
+
+    VF -->|topic + options| GV
+    GV -->|plan request| Services
+    Services -->|structured JSON| GeminiText
+    Services -->|image prompt| GeminiImagen
+    Services -->|voiceover text| Deepgram
+    Services -->|vectorize PNG| VectorizerSvc
+    Services --> Public
+    Services --> Renderer
+    Renderer --> Output
+
+    PS -->|images / params| PSRoute
+    PSRoute --> Temp
+    PSRoute --> Colab
+    Colab --> PSRoute
+    PSRoute --> Jobs
+    PSRoute --> Output
+    PSRoute --> Public
+
+    AIRoute --> Services

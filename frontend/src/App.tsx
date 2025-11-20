@@ -1,4 +1,5 @@
 import GenerateVideoDemo from './components/GenerateVideoDemo';
+import PenSketchTest from './components/PenSketchTest';
 import './App.css';
 
 function App() {
@@ -10,6 +11,10 @@ function App() {
           <p>Turn your lesson topics into polished narrated videos with AI-drafted visuals.</p>
         </header>
         <GenerateVideoDemo />
+        <div style={{ marginTop: '40px', borderTop: '2px solid #e5e7eb', paddingTop: '40px' }}>
+          <h2 style={{ marginBottom: '20px' }}>🖊️ Pen Sketch Animation Test</h2>
+          <PenSketchTest />
+        </div>
       </div>
     </div>
   );

@@ -153,10 +153,10 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 		>
 			<div
 				style={{
-					// YouTube-style positioning: Bottom, starting at 35% from left
+					// YouTube-style positioning: Bottom, starting at 30% from left
 					position: 'absolute',
 					bottom: '50px', // Changed from 80px to 50px
-					left: '35%', // Start at 35% from left edge of screen
+					left: '30%', // Start at 30% from left edge of screen (reduced from 35%)
 					// No transform - let it grow naturally to the right
 					width: 'auto',
 					// YouTube-style: Semi-transparent dark background (slightly more opaque)

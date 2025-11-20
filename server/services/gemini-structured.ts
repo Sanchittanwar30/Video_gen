@@ -63,11 +63,13 @@ Given topic + description, output:
 }
 
 EXAMPLE of good prompt_for_image:
-"A clear educational whiteboard diagram explaining [specific concept from topic] using geometric shapes, flowcharts, and visual connections. Show [specific relationships, processes, or structures relevant to the topic]. Include essential labels (less than 10% text) that help explain the concept. Make it informative and directly related to the topic - avoid abstract or decorative elements."
+"A clear educational whiteboard diagram explaining [specific concept from topic] using geometric shapes, flowcharts, and visual connections. Show [specific relationships, processes, or structures relevant to the topic]. Include essential labels (less than 10% text) that help explain the concept. Make it informative and directly related to the topic - avoid abstract or decorative elements. ALL text labels must be spelled correctly with zero tolerance for spelling mistakes."
 
 IMPORTANT: Each prompt_for_image must be specific to the topic and create a meaningful educational diagram. Avoid generic descriptions. Focus on creating diagrams that clearly explain the concept being taught.
 
 CRITICAL: The prompt_for_image should describe what to DRAW, not what to LABEL. Do NOT include any text in the prompt that suggests adding labels like "visual_aid", "visual aid", "diagram", "chart", or any descriptive text about what the image is. Only describe the actual educational content to be drawn.
+
+SPELLING REQUIREMENT: When describing text labels to include, emphasize that ALL words must be spelled correctly. Use exact spellings from the topic description. If technical terms are mentioned, use their exact spelling.
 
 🚫 FORBIDDEN IN PROMPTS: Never include "visual_aid", "visual aid", or any descriptive labels in the prompt_for_image. The prompt should only describe the educational content to draw, not labels about what the image is.
 
@@ -101,13 +103,41 @@ const validatePlan = (plan: StructuredVideoPlan): StructuredVideoPlan => {
 
 		const duration = Number.isFinite(frame.duration) ? Number(frame.duration) : 4;
 
-		// Ensure whiteboard diagrams have detailed prompts
+		// Ensure whiteboard diagrams have detailed prompts and sanitize them
 		let prompt_for_image = frame.prompt_for_image;
 		if (type === 'whiteboard_diagram' && prompt_for_image) {
-			// Enhance prompt if it's too short or lacks detail
+			// Sanitize prompt to remove metadata, JSON, code blocks, etc.
+			prompt_for_image = prompt_for_image
+				.replace(/```json[\s\S]*?```/gi, '') // Remove JSON code blocks
+				.replace(/```[\s\S]*?```/gi, '') // Remove any code blocks
+				.replace(/\{[^}]*"visual_aid"[^}]*\}/gi, '') // Remove JSON objects with visual_aid
+				.replace(/\{[^}]*"drawing_[^}]*\}/gi, '') // Remove JSON objects with drawing_*
+				.replace(/\{[^}]*"type"[^}]*\}/gi, '') // Remove JSON objects with type
+				.replace(/\[[^\]]*"visual_aid"[^\]]*\]/gi, '') // Remove arrays with visual_aid
+				.replace(/visual_aid/gi, '')
+				.replace(/visual aid/gi, '')
+				.replace(/drawing_instructions/gi, '')
+				.replace(/drawing_elements/gi, '')
+				.replace(/`{3,}/g, '') // Remove 3+ consecutive backticks
+				.replace(/`{1,2}/g, '') // Remove 1-2 backticks
+				.trim();
+			
+			// Validate prompt quality
 			const promptLength = prompt_for_image.length;
-			if (promptLength < 100) {
-				console.warn(`[Structured Plan] Frame ${frame.id} has short prompt (${promptLength} chars), may need enhancement`);
+			if (promptLength < 50) {
+				console.warn(`[Structured Plan] ⚠️  Frame ${frame.id} has very short prompt (${promptLength} chars) after sanitization`);
+			}
+			
+			// Check for metadata patterns that shouldn't be in the prompt
+			const hasMetadata = /Type\s*:|Style\s*:|Category\s*:|whiteboard_drawing|visual_aid|drawing_instructions|drawing_elements/i.test(prompt_for_image);
+			if (hasMetadata) {
+				console.warn(`[Structured Plan] ⚠️  Frame ${frame.id} prompt may contain metadata patterns, attempting to clean...`);
+				prompt_for_image = prompt_for_image
+					.replace(/\bType\s*:\s*\w+/gi, '')
+					.replace(/\bStyle\s*:\s*\w+/gi, '')
+					.replace(/\bCategory\s*:\s*\w+/gi, '')
+					.replace(/whiteboard_drawing[:\s]*\w*/gi, '')
+					.trim();
 			}
 		}
 

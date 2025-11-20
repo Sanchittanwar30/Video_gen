@@ -4,14 +4,21 @@ This directory contains files and scripts for running heavy video rendering task
 
 ## 🚀 Quick Start
 
-**New to Colab?** Start here:
-1. **[QUICK_START.md](./QUICK_START.md)** - Get running in 5 minutes
-2. **[SETUP_GUIDE.md](./SETUP_GUIDE.md)** - Complete step-by-step setup
+**Pen Sketch Animation (New):**
+1. **[COMPLETE_SETUP_GUIDE.md](./COMPLETE_SETUP_GUIDE.md)** - ⭐ **START HERE** - Full step-by-step setup
+2. **[QUICK_START_PEN_SKETCH.md](./QUICK_START_PEN_SKETCH.md)** - Quick reference (5 minutes)
+3. **[PEN_SKETCH_SETUP.md](./PEN_SKETCH_SETUP.md)** - Detailed setup guide
+4. **[PEN_SKETCH_FEATURES.md](./PEN_SKETCH_FEATURES.md)** - Features and API docs
 
-**Already set up?** See:
+**General Video Rendering:**
+1. **[SETUP_GUIDE.md](./SETUP_GUIDE.md)** - Complete step-by-step setup
+2. **[SETUP_CHECKLIST.md](./SETUP_CHECKLIST.md)** - Setup checklist
+
+**Common:**
 - **[API_USAGE.md](./API_USAGE.md)** - API endpoint documentation
 - **[ngrok-setup.md](./ngrok-setup.md)** - ngrok configuration guide
-- **[FASTAPI_SETUP.md](./FASTAPI_SETUP.md)** - FastAPI server alternative (Python)
+- **[TROUBLESHOOTING_COLAB.md](./TROUBLESHOOTING_COLAB.md)** - Fix file upload issues
+- **[TEST_NGROK_CONNECTION.md](./TEST_NGROK_CONNECTION.md)** - Fix SSL/connection issues
 
 ## Overview
 
@@ -24,10 +31,21 @@ Google Colab provides free GPU/CPU resources that can be used to offload computa
 
 ## Files
 
-- **`Video_Rendering_Colab.ipynb`** - Main Colab notebook for video rendering
+### Pen Sketch Animation (New)
+- **`colab_pen_sketch_notebook.ipynb`** - Colab notebook for pen-sketch animation
+- **`pen_sketch_animation.py`** - Python animation engine
+- **`fastapi_pen_sketch.py`** - FastAPI server for pen-sketch animation
+- **`requirements-pen-sketch.txt`** - Python dependencies
+- **`PEN_SKETCH_SETUP.md`** - Setup guide for pen-sketch animation
+- **`QUICK_START_PEN_SKETCH.md`** - Quick start guide
+- **`PEN_SKETCH_FEATURES.md`** - Feature documentation
+
+### General Video Rendering
+- **`Video_Rendering_Colab.ipynb`** - Colab notebook for general video rendering
 - **`upload_to_colab.py`** - Python script to prepare project files for Colab
-- **`colab-service.ts`** - TypeScript service for Colab integration (optional API mode)
-- **`README.md`** - This file
+- **`colab-service.ts`** - TypeScript service for Colab integration
+- **`SETUP_GUIDE.md`** - General setup guide
+- **`SETUP_CHECKLIST.md`** - Setup checklist
 
 ## Quick Start
 

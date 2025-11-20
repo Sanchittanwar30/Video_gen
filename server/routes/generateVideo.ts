@@ -133,8 +133,8 @@ router.post('/generate-video', async (req: Request, res: Response) => {
 						? `\n\nVoiceover context (add text labels in the diagram that support this narration): "${voiceoverScript}"\n- Include key terms, labels, and short phrases from the voiceover in the diagram\n- Make text labels visible and readable to support the narration`
 						: '';
 					
-					// Sanitize the prompt_for_image to remove any "visual_aid", metadata, Mermaid syntax, or similar forbidden terms
-					const sanitizedImagePrompt = (frame.prompt_for_image || '')
+					// Sanitize the prompt_for_image to remove any "visual_aid", metadata, Mermaid syntax, JSON, or similar forbidden terms
+					let sanitizedImagePrompt = (frame.prompt_for_image || '')
 						.replace(/visual_aid/gi, '')
 						.replace(/visual aid/gi, '')
 						.replace(/visualaid/gi, '')
@@ -150,6 +150,15 @@ router.post('/generate-video', async (req: Request, res: Response) => {
 						.replace(/hand\s*blacker/gi, '')
 						.replace(/mazeboard/gi, '')
 						.replace(/maze\s*board/gi, '')
+						// Remove JSON structures and code blocks
+						.replace(/```json[\s\S]*?```/gi, '') // Remove JSON code blocks
+						.replace(/```[\s\S]*?```/gi, '') // Remove any code blocks
+						.replace(/\{[^}]*"visual_aid"[^}]*\}/gi, '') // Remove JSON objects with visual_aid
+						.replace(/\{[^}]*"drawing_[^}]*\}/gi, '') // Remove JSON objects with drawing_*
+						.replace(/\{[^}]*"type"[^}]*\}/gi, '') // Remove JSON objects with type
+						.replace(/\[[^\]]*"visual_aid"[^\]]*\]/gi, '') // Remove arrays with visual_aid
+						.replace(/drawing_instructions/gi, '') // Remove drawing_instructions
+						.replace(/drawing_elements/gi, '') // Remove drawing_elements
 						// Remove metadata patterns with underscores and colons (more specific)
 						.replace(/\w+_\w+\s*:\s*\w+/g, '') // "key_key:value" patterns
 						.replace(/\b(whiteboard|drawing|style|type|category)\s*:\s*\w+/gi, '') // Common metadata keys
@@ -160,8 +169,17 @@ router.post('/generate-video', async (req: Request, res: Response) => {
 						.replace(/-->/g, ' to ') // Replace Mermaid arrows with "to"
 						.replace(/==>/g, ' to ') // Replace Mermaid arrows with "to"
 						.replace(/\s+--\s+/g, ' ') // Replace Mermaid arrows with space (only when surrounded by spaces)
-						.replace(/\s+/g, ' ')
+						// Remove repeated backticks (like the problematic image)
+						.replace(/`{3,}/g, '') // Remove 3+ consecutive backticks
+						.replace(/`{1,2}/g, '') // Remove 1-2 backticks
+						.replace(/\s+/g, ' ') // Normalize whitespace
 						.trim();
+					
+					// If sanitization removed everything or left only whitespace, use a fallback
+					if (!sanitizedImagePrompt || sanitizedImagePrompt.length < 10) {
+						console.warn(`[Generate Video] ⚠️  Sanitized prompt too short for frame ${frame.id}, using fallback`);
+						sanitizedImagePrompt = `A clear educational whiteboard diagram explaining ${frame.heading || topic}. Use geometric shapes, flowcharts, and visual connections. Include essential labels with correct spelling.`;
+					}
 					
 					const enhancedPrompt = `You are a teacher drawing on a WHITEBOARD. This is a HAND-DRAWN DIAGRAM, NOT code, NOT JSON, NOT metadata, NOT technical documentation.
 
@@ -196,33 +214,67 @@ CRITICAL INSTRUCTIONS:
 CONTENT REQUIREMENTS:
 - The diagram MUST be directly related to and explain ONLY the topic: "${topic}"
 - Create a SIMPLE, educational diagram using ONLY basic elements: figures, tables, blocks, diagrams, and text
+- PEN SKETCH ANIMATION FRIENDLY: Design for easy stroke-by-stroke animation
 - Use ONLY simple visual representations: basic flowcharts, simple process diagrams, basic system blocks, simple concept maps, or simple explanatory diagrams
 - Keep it SIMPLE: Only use basic geometric shapes (circles, rectangles, squares), simple tables (grids), blocks (boxes), and minimal text labels
+- Draw with CLEAR, DISTINCT paths - each element should be easily traceable
+- Use BOLD strokes - avoid thin, delicate lines that are hard to animate
+- Keep paths SEPARATE - avoid merging or overlapping paths unnecessarily
 - NO complex illustrations, detailed artwork, or intricate designs
 - NO decorative elements, visual effects, or artistic flourishes
+- NO fine details, textures, or shading - solid black lines only
 - Include ONLY essential labels and annotations that support learning (2-5 words maximum per label)
 - Make it informative and educational - use ONLY simple shapes, blocks, tables, and minimal text
 - ONLY include content directly related to the topic - nothing else
 - Draw ONLY simple visual elements: basic figures, simple tables, blocks, basic diagrams, and short text labels
 - NO code, NO JSON, NO technical syntax, NO complex illustrations
+- ANIMATION FRIENDLY: Each element should be a clear, distinct path that can be drawn stroke-by-stroke
+
+TEXT AND SPELLING REQUIREMENTS (CRITICAL):
+- ALL text labels MUST be spelled correctly - ZERO TOLERANCE for spelling mistakes
+- Double-check every word before writing it - ensure perfect spelling
+- Use standard English spelling - no abbreviations unless they are standard (e.g., "API", "URL")
+- If you are unsure of a word's spelling, use simpler, more common words that you know are correct
+- Common technical terms must be spelled correctly: "Database", "Server", "Client", "System", "Application", "Network", "Request", "Response", "Cache", "Load Balancer", etc.
+- Proper nouns and technical terms from the topic description must match exactly - use the exact spelling from the topic
+- NO typos, NO misspellings, NO letter substitutions, NO missing letters, NO extra letters
+- Write text clearly and legibly - each letter must be distinct and correct
+- If a word appears in the topic or description, use that EXACT spelling
+- Verify spelling of all words before finalizing the image
+- Use correct capitalization: capitalize proper nouns, first word of labels, and technical terms as appropriate
+- NO phonetic spelling or approximations - use correct dictionary spelling
+- Common words that must be spelled correctly: "the", "and", "for", "with", "from", "to", "in", "on", "at", "by", "is", "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will", "would", "should", "could", "may", "might", "can", "must"
+- Technical terms: "Database" (not "Databse" or "Data Base"), "Server" (not "Servr" or "Servar"), "Client" (not "Clinet"), "System" (not "Sytem" or "Sistem"), "Application" (not "Aplication" or "Applicaton"), "Network" (not "Netwrok" or "Networ"), "Request" (not "Reqest" or "Reques"), "Response" (not "Responce" or "Respones"), "Cache" (not "Cach" or "Cashe"), "Load Balancer" (not "Load Balancr" or "Load Balancer")
+- If you cannot spell a word correctly, DO NOT include it - use a simpler alternative or omit the text label
+- Remember: Spelling accuracy is MORE IMPORTANT than including every possible label - fewer correct labels are better than many misspelled ones
 
 STYLE REQUIREMENTS:
 - PURE WHITE BACKGROUND ONLY - absolutely no background objects, furniture, walls, room elements, or any other background details
 - The entire background must be completely white/blank - only the diagram content should be visible
-- Black marker-style drawings on white background
+- Black marker-style drawings on white background - use BOLD, CLEAR strokes
+- PEN SKETCH ANIMATION FRIENDLY: Draw with simple, distinct paths that can be easily traced
+- Use THICK, BOLD lines (2-3px equivalent) - avoid thin, delicate lines
 - SIMPLICITY IS KEY: Use ONLY simple geometric shapes, basic diagrams, tables, blocks, and minimal text
 - Keep it SIMPLE: Only include figures (circles, rectangles, squares, triangles), tables (simple grid structures), blocks (rectangular boxes), diagrams (basic flowcharts), and short text labels
 - NO complex illustrations, detailed drawings, or intricate designs
 - NO decorative elements, gradients, shadows, or visual effects
 - NO detailed artwork or artistic elements
+- NO fine details, textures, or shading - use solid black lines only
+- NO overlapping complex paths - keep each element distinct and separate
 - Use ONLY basic shapes: circles, rectangles, squares, lines, arrows, and simple geometric forms
+- Make each path CLEAR and DISTINCT - avoid paths that cross or merge unnecessarily
+- Use CONTINUOUS strokes - avoid broken or dashed lines (unless necessary for the concept)
+- Keep paths SIMPLE - each shape should be a single, clear path when possible
 - 60-70% simple visual figures: basic shapes, simple diagrams, tables, blocks
 - 20-30% text labels (short phrases, 2-5 words maximum) to explain key concepts
 - Use MINIMAL complexity: simple circles, rectangles, arrows, lines, boxes, basic flowcharts
-- Keep text concise and readable - no long paragraphs, no sentences
-- Use simple connecting lines and arrows to show relationships
+- Keep text concise and readable - use BOLD, CLEAR fonts - no thin or decorative fonts
+- Write text labels with PERFECT SPELLING - verify each word before writing
+- Text must be legible and correctly spelled - prioritize spelling accuracy over quantity of labels
+- Use simple connecting lines and arrows to show relationships - make arrows simple and bold
 - Arrange elements with clear spacing and logical flow
 - Prioritize SIMPLICITY: basic shapes, simple tables, blocks, and minimal text only
+- ANIMATION FRIENDLY: Draw in a way that each element can be traced stroke-by-stroke - avoid complex merged paths
 
 BACKGROUND REQUIREMENTS (CRITICAL):
 - The image must have a COMPLETELY CLEAN WHITE BACKGROUND
@@ -279,6 +331,8 @@ ABSOLUTELY FORBIDDEN - DO NOT INCLUDE IN THE IMAGE (ZERO TOLERANCE):
 CRITICAL RULES (MUST FOLLOW - NO EXCEPTIONS):
 - The image must contain ONLY the educational diagram content on a pure white background
 - ALL text in the image must be directly related to explaining the topic - no exceptions
+- ALL text labels MUST be spelled correctly - verify spelling before writing each word
+- NO spelling mistakes, typos, or misspellings - ZERO TOLERANCE
 - NO technical specifications, parameters, or metadata should appear anywhere in the image - ZERO TOLERANCE
 - NO descriptive labels like "visual_aid", "visual aid", "diagram", "chart", "figure", or any text describing what the image is
 - NO metadata labels like "whiteboard_drawing:hand_blacker", "Type:mazeboard", or any "key:value" format - ZERO TOLERANCE
@@ -291,13 +345,16 @@ CRITICAL RULES (MUST FOLLOW - NO EXCEPTIONS):
 - Draw ONLY the visual elements (shapes, arrows, labels explaining the concept) - nothing else
 - If you see any text that is not part of explaining the topic concept itself, DO NOT include it in the image
 - The image is a HAND-DRAWN WHITEBOARD DRAWING, not a code representation, not JSON, not Mermaid syntax, not technical documentation, not metadata
-- Think of yourself as a teacher drawing on a whiteboard - you draw shapes, arrows, and write labels, but you NEVER write code, JSON, Mermaid syntax, metadata labels, type labels, or any technical syntax
+- Think of yourself as a teacher drawing on a whiteboard - you draw shapes, arrows, and write labels with PERFECT SPELLING, but you NEVER write code, JSON, Mermaid syntax, metadata labels, type labels, or any technical syntax
 - DO NOT create JSON structures like {"visual_aid": {...}} in your thinking or in the image - draw directly without structured data
 - Mermaid is CODE - you are DRAWING, not writing code - if you see Mermaid syntax anywhere, IGNORE IT completely
 - Metadata labels (like "Type:", "whiteboard_drawing:", etc.) are FORBIDDEN - you are DRAWING, not labeling the image type
 - When in doubt, ask: "Would a teacher write this on a whiteboard?" If it's code/JSON/Mermaid/metadata/type labels/technical syntax, the answer is NO - do not include it
-- REMEMBER: You are DRAWING, not coding, not writing JSON, not writing Mermaid, not creating metadata, not labeling image types - ONLY DRAWING VISUAL ELEMENTS
-- FINAL CHECK: Before generating the image, verify: Does it contain "visual_aid", JSON, metadata, or Mermaid? If YES, remove it completely`;
+- REMEMBER: You are DRAWING, not coding, not writing JSON, not writing Mermaid, not creating metadata, not labeling image types - ONLY DRAWING VISUAL ELEMENTS WITH CORRECT SPELLING
+- FINAL CHECK: Before generating the image, verify: 
+  1. Does it contain "visual_aid", JSON, metadata, or Mermaid? If YES, remove it completely
+  2. Are ALL words spelled correctly? If NO, fix the spelling or remove the text
+  3. Are technical terms from the topic spelled exactly as they appear in the topic? If NO, use the exact spelling from the topic`;
 					// Add delay between API calls to prevent rate limiting (503 errors)
 					// Longer delay for later frames to avoid overwhelming the API
 					const baseDelay = 3000; // 3 seconds base delay
@@ -311,23 +368,47 @@ CRITICAL RULES (MUST FOLLOW - NO EXCEPTIONS):
 					}
 					
 					// Generate image with retry logic
+					// IMPORTANT: If image generation retries, we may need to regenerate voiceover to match the new image
 					let imageRetryCount = 0;
 					const maxImageRetries = 3;
+					let lastImageError: any = null;
+					
 					while (imageRetryCount <= maxImageRetries) {
 						try {
 							staticImageUrl = await callGeminiImage(enhancedPrompt);
 							if (staticImageUrl) {
 								console.log(`[Generate Video] Image generated successfully: ${staticImageUrl}`);
+								
+								// If this was a retry, regenerate voiceover to ensure sync with new image
+								if (imageRetryCount > 0) {
+									console.log(`[Generate Video] ⚠️  Image retry succeeded (attempt ${imageRetryCount + 1}), regenerating voiceover for better sync...`);
+									try {
+										voiceoverScript = await generateVoiceoverScript(
+											frame, 
+											topic, 
+											index, 
+											sketchOnlyFrames.length,
+											frame.prompt_for_image // Use original prompt
+										);
+										console.log(`[Generate Video] ✓ Voiceover regenerated after image retry`);
+									} catch (voiceoverError: any) {
+										console.warn(`[Generate Video] Voiceover regeneration failed after image retry, using original:`, voiceoverError.message);
+										// Keep original voiceover if regeneration fails
+									}
+								}
+								
 								break; // Success
 							}
 						} catch (error: any) {
+							lastImageError = error;
 							imageRetryCount++;
 							if (imageRetryCount > maxImageRetries) {
 								console.error(`[Generate Video] ✗ Image generation failed after ${maxImageRetries + 1} attempts for frame ${frame.id}:`, error.message);
 								throw new Error(`Image generation failed: ${error.message}`);
 							} else {
 								console.warn(`[Generate Video] Image generation attempt ${imageRetryCount} failed, retrying... (${error.message})`);
-								await new Promise(resolve => setTimeout(resolve, 2000 * imageRetryCount));
+								// Increase delay with each retry
+								await new Promise(resolve => setTimeout(resolve, 3000 * imageRetryCount));
 							}
 						}
 					}

@@ -529,6 +529,28 @@ export async function callGeminiImage(
         // Imagen models use :predict endpoint with predictions array
         const predictions = Array.isArray(data?.predictions) ? data.predictions : [];
         for (const prediction of predictions) {
+          // Check for RAI filtering
+          if (prediction?.raiFilteredReason) {
+            console.warn(`[Gemini Image] Content filtered: ${prediction.raiFilteredReason}`);
+            continue; // Skip this prediction
+          }
+          
+          // Check if prompt field contains JSON/metadata (warning only - image may still be valid)
+          if (prediction?.prompt) {
+            const promptStr = String(prediction.prompt);
+            // Detect JSON structures, code blocks, or metadata patterns in prompt
+            const hasJson = /\{[\s\S]*"visual_aid"[\s\S]*\}/i.test(promptStr) || 
+                           /\{[\s\S]*"drawing_[^"]*"[\s\S]*\}/i.test(promptStr) ||
+                           /```json/i.test(promptStr) ||
+                           /```[\s\S]*```/.test(promptStr) ||
+                           /`{3,}/.test(promptStr); // Repeated backticks
+            
+            if (hasJson) {
+              console.warn(`[Gemini Image] ⚠️  Detected JSON/metadata in prompt field - image may contain metadata`);
+              console.warn(`[Gemini Image] Prompt preview: ${promptStr.substring(0, 300)}...`);
+            }
+          }
+          
           base64 =
             typeof prediction?.bytesBase64Encoded === "string"
               ? prediction.bytesBase64Encoded

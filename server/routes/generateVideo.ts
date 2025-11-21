@@ -11,18 +11,60 @@ import {promises as fs} from 'fs';
 
 const router = Router();
 
+// WebSocket progress helper
+let wsServer: any = null;
+const getWsServer = () => {
+	if (!wsServer) {
+		try {
+			wsServer = require('../index').wsServer;
+		} catch (e) {
+			// WebSocket server not available
+		}
+	}
+	return wsServer;
+};
+
+const sendProgress = (jobId: string, phase: string, percentage: number, message?: string, step?: number, totalSteps?: number) => {
+	const ws = getWsServer();
+	if (ws) {
+		ws.broadcast({
+			type: 'progress',
+			jobId,
+			phase,
+			percentage,
+			message,
+			step,
+			totalSteps,
+		});
+	}
+};
+
 // Helper function to process frames - extracted to avoid TypeScript parser issues with very long try blocks
 async function processFrames(
 	sketchOnlyFrames: any[],
 	plan: any,
 	topic: string,
+	description: string,
 	useFixedTestImage: boolean,
 	fixedTestImages: string[],
-	animateDiagrams: boolean
+	animateDiagrams: boolean,
+	jobId?: string
 ): Promise<any[]> {
 	const framesWithAssets = [];
 	for (let index = 0; index < sketchOnlyFrames.length; index++) {
 		const frame = sketchOnlyFrames[index];
+		
+		// Send progress for each frame
+		if (jobId) {
+			const frameProgress = 25 + Math.floor((index / sketchOnlyFrames.length) * 45);
+			sendProgress(jobId, index < sketchOnlyFrames.length / 2 ? 'images' : 'voiceover', 
+				frameProgress, 
+				`Processing frame ${index + 1} of ${sketchOnlyFrames.length}...`,
+				index + 1,
+				sketchOnlyFrames.length
+			);
+		}
+		
 		let frameWithAssets: any = {...frame};
 		
 		if (frame.type === 'whiteboard_diagram' && frame.prompt_for_image) {
@@ -65,6 +107,22 @@ async function processFrames(
 					: '';
 				
 				// ULTRA-AGGRESSIVE sanitization - remove ALL instances of forbidden terms
+				// Extract words from topic and description for spelling reference
+				const extractWordsForSpelling = (text: string): string[] => {
+					if (!text) return [];
+					// Extract all words (alphanumeric sequences) and filter out very short words
+					const words = text.match(/\b[a-zA-Z]{3,}\b/g) || [];
+					// Remove duplicates and sort
+					return [...new Set(words.map(w => w.toLowerCase()))].sort();
+				};
+				
+				const topicWords = extractWordsForSpelling(topic);
+				const descriptionWords = extractWordsForSpelling(description || '');
+				const allReferenceWords = [...new Set([...topicWords, ...descriptionWords])];
+				const spellingReference = allReferenceWords.length > 0 
+					? `\n\n📚 SPELLING REFERENCE - Use EXACT spellings from these words found in the topic/description:\n${allReferenceWords.slice(0, 50).join(', ')}${allReferenceWords.length > 50 ? ` (and ${allReferenceWords.length - 50} more words)` : ''}\n- If any word appears in the diagram, it MUST match the spelling above EXACTLY\n- Copy the spelling character-by-character from the reference above\n`
+					: '';
+				
 				// This is the final defense before sending to Imagen
 				let sanitizedImagePrompt = (frame.prompt_for_image || '')
 					// Remove ALL code blocks first (JSON, Mermaid, markdown, etc.) - be EXTREMELY aggressive
@@ -298,23 +356,25 @@ CONTENT REQUIREMENTS:
 - NO code, NO JSON, NO technical syntax, NO complex illustrations
 - ANIMATION FRIENDLY: Each element should be a clear, distinct path that can be drawn stroke-by-stroke
 
-TEXT AND SPELLING REQUIREMENTS (CRITICAL):
-- ALL text labels MUST be spelled correctly - ZERO TOLERANCE for spelling mistakes
-- Double-check every word before writing it - ensure perfect spelling
-- Use standard English spelling - no abbreviations unless they are standard (e.g., "API", "URL")
-- If you are unsure of a word's spelling, use simpler, more common words that you know are correct
-- Common technical terms must be spelled correctly: "Database", "Server", "Client", "System", "Application", "Network", "Request", "Response", "Cache", "Load Balancer", etc.
-- Proper nouns and technical terms from the topic description must match exactly - use the exact spelling from the topic
-- NO typos, NO misspellings, NO letter substitutions, NO missing letters, NO extra letters
+🚨 SPELLING IS THE #1 PRIORITY - CRITICAL REQUIREMENTS (READ THIS FIRST):
+- SPELLING ACCURACY IS MORE IMPORTANT THAN ANYTHING ELSE - A SINGLE SPELLING MISTAKE MAKES THE ENTIRE IMAGE UNACCEPTABLE
+- BEFORE writing ANY text label, you MUST verify the spelling is 100% correct
+- If you are even slightly unsure about a word's spelling, DO NOT use it - choose a simpler word you know is correct
+- Extract ALL words from the topic and description - these are your spelling reference - use EXACT spellings from the source
+- Common spelling mistakes to AVOID: "recieve" (correct: "receive"), "seperate" (correct: "separate"), "definately" (correct: "definitely"), "occured" (correct: "occurred"), "accomodate" (correct: "accommodate"), "begining" (correct: "beginning"), "existance" (correct: "existence"), "maintainance" (correct: "maintenance"), "priviledge" (correct: "privilege"), "sucess" (correct: "success")
+- Technical terms MUST be spelled correctly: "Database" (NOT "Databse", "Data Base", "Databaze"), "Server" (NOT "Servr", "Servar", "Servor"), "Client" (NOT "Clinet", "Clien"), "System" (NOT "Sytem", "Sistem", "Systm"), "Application" (NOT "Aplication", "Applicaton", "Aplicaton"), "Network" (NOT "Netwrok", "Networ", "Netwrk"), "Request" (NOT "Reqest", "Reques", "Reqest"), "Response" (NOT "Responce", "Respones", "Respon"), "Cache" (NOT "Cach", "Cashe", "Cach"), "Polymorphism" (NOT "Polymorphisim", "Polymorphysm"), "Inheritance" (NOT "Inheritence", "Inheritanc"), "Encapsulation" (NOT "Encapsulaton", "Encapsulatin"), "Abstraction" (NOT "Abstracion", "Abstacton")
+- Programming terms: "Function" (NOT "Functon", "Functin"), "Variable" (NOT "Variabl", "Variabel"), "Class" (NOT "Clas", "Clss"), "Object" (NOT "Objct", "Oject"), "Method" (NOT "Methd", "Metho"), "Array" (NOT "Arry", "Arra"), "String" (NOT "Strin", "Strng"), "Integer" (NOT "Intger", "Intege"), "Boolean" (NOT "Boolen", "Boolan")
+- Common words that MUST be spelled correctly: "the" (NOT "teh", "th"), "and" (NOT "adn", "nad"), "for" (NOT "fro", "forr"), "with" (NOT "wth", "wit"), "from" (NOT "frm", "form"), "to" (NOT "ot", "too"), "in" (NOT "ni", "inn"), "on" (NOT "no", "onn"), "at" (NOT "ta", "att"), "by" (NOT "yb", "byy"), "is" (NOT "si", "iss"), "are" (NOT "rae", "arre"), "was" (NOT "saw", "wass"), "were" (NOT "ewre", "werre"), "be" (NOT "eb", "bee"), "been" (NOT "bene", "beene"), "have" (NOT "haev", "hav"), "has" (NOT "ahs", "hass"), "had" (NOT "dah", "hadd"), "do" (NOT "od", "doo"), "does" (NOT "dose", "dooes"), "did" (NOT "didd", "diid"), "will" (NOT "willl", "wil"), "would" (NOT "woudl", "woul"), "should" (NOT "shoudl", "shoul"), "could" (NOT "coudl", "coul"), "may" (NOT "yam", "mayy"), "might" (NOT "migth", "migh"), "can" (NOT "nac", "cann"), "must" (NOT "mustt", "mus")
+- Proper nouns and technical terms from the topic description MUST match EXACTLY - copy the spelling character-by-character from the source
+- NO typos, NO misspellings, NO letter substitutions, NO missing letters, NO extra letters, NO transposed letters
 - Write text clearly and legibly - each letter must be distinct and correct
-- If a word appears in the topic or description, use that EXACT spelling
-- Verify spelling of all words before finalizing the image
+- If a word appears in the topic or description, use that EXACT spelling - copy it exactly
+- Verify spelling of ALL words before finalizing the image - check each word individually
 - Use correct capitalization: capitalize proper nouns, first word of labels, and technical terms as appropriate
-- NO phonetic spelling or approximations - use correct dictionary spelling
-- Common words that must be spelled correctly: "the", "and", "for", "with", "from", "to", "in", "on", "at", "by", "is", "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will", "would", "should", "could", "may", "might", "can", "must"
-- Technical terms: "Database" (not "Databse" or "Data Base"), "Server" (not "Servr" or "Servar"), "Client" (not "Clinet"), "System" (not "Sytem" or "Sistem"), "Application" (not "Aplication" or "Applicaton"), "Network" (not "Netwrok" or "Networ"), "Request" (not "Reqest" or "Reques"), "Response" (not "Responce" or "Respones"), "Cache" (not "Cach" or "Cashe"), "Load Balancer" (not "Load Balancr" or "Load Balancer")
-- If you cannot spell a word correctly, DO NOT include it - use a simpler alternative or omit the text label
-- Remember: Spelling accuracy is MORE IMPORTANT than including every possible label - fewer correct labels are better than many misspelled ones
+- NO phonetic spelling or approximations - use correct dictionary spelling only
+- If you cannot spell a word correctly with 100% certainty, DO NOT include it - use a simpler alternative or omit the text label entirely
+- Remember: Spelling accuracy is MORE IMPORTANT than including every possible label - fewer correct labels are ALWAYS better than many misspelled ones
+- FINAL SPELLING CHECK: Before generating, mentally spell out each word letter-by-letter to verify correctness
 
 STYLE REQUIREMENTS:
 - PURE WHITE BACKGROUND ONLY - absolutely no background objects, furniture, walls, room elements, or any other background details
@@ -352,7 +412,7 @@ BACKGROUND REQUIREMENTS (CRITICAL):
 - The whiteboard/white background should be the ONLY background element - nothing else
 
 DIAGRAM DESCRIPTION:
-${sanitizedImagePrompt}${voiceoverContext}
+${sanitizedImagePrompt}${voiceoverContext}${spellingReference}
 
 REMEMBER: The diagram description above is what to DRAW. Do NOT write "visual_aid", "visual aid", or any descriptive labels in the image. Only draw the actual educational content.
 
@@ -704,6 +764,12 @@ router.post('/generate-video', async (req: Request, res: Response) => {
 	req.setTimeout(600000); // 10 minutes
 
 	try {
+		// Generate job ID
+		const tempJobId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+		
+		// Send initial progress
+		sendProgress(tempJobId, 'planning', 5, 'Starting video generation...');
+		
 		// Starting generation
 		if (useFixedTestImage) {
 			console.log(`[Generate Video] ⚠️  FIXED TEST IMAGE MODE ENABLED - Skipping all Gemini API calls`);
@@ -730,7 +796,9 @@ router.post('/generate-video', async (req: Request, res: Response) => {
 			console.log(`[Generate Video] Fixed test image mode: Created ${sketchOnlyFrames.length} frame(s) without Gemini API calls`);
 		} else {
 			// Normal mode: use Gemini to generate plan
+			sendProgress(tempJobId, 'planning', 10, 'Generating AI video plan...');
 			plan = await generateStructuredJSON(topic, description ?? '');
+			sendProgress(tempJobId, 'planning', 20, 'Video plan created!');
 			
 			// Filter to only sketch-based frames (whiteboard diagrams and motion scenes)
 			// Remove text_slide and bullet_slide frames
@@ -742,14 +810,18 @@ router.post('/generate-video', async (req: Request, res: Response) => {
 		// Processing frames
 		
 		// Process frames sequentially to avoid timeout issues and rate limiting
+		sendProgress(tempJobId, 'images', 25, `Generating images and voiceovers...`, 0, sketchOnlyFrames.length);
 		const framesWithAssets = await processFrames(
 			sketchOnlyFrames,
 			plan,
 			topic,
+			description,
 			useFixedTestImage,
 			fixedTestImages,
-			animateDiagrams
+			animateDiagrams,
+			tempJobId
 		);
+		sendProgress(tempJobId, 'voiceover', 70, 'All assets ready!');
 
 		let backgroundMusic: string | undefined = process.env.DEFAULT_BACKGROUND_MUSIC;
 		
@@ -787,8 +859,25 @@ router.post('/generate-video', async (req: Request, res: Response) => {
 			...(backgroundMusic && { backgroundMusic }),
 		};
 
+		sendProgress(tempJobId, 'rendering', 75, 'Rendering video...');
 		const outputLocation = await renderStoryboardVideo(storyboard);
+		sendProgress(tempJobId, 'rendering', 95, 'Finalizing video...');
+		
 		const jobId = uuidv4();
+
+		// Save transcript and merged voiceover for future reference
+		await saveVideoMetadata(outputLocation, storyboard);
+		
+		// Send completion
+		sendProgress(tempJobId, 'complete', 100, 'Video generated successfully!');
+		const ws = getWsServer();
+		if (ws) {
+			ws.broadcast({
+				type: 'complete',
+				jobId: tempJobId,
+				videoUrl: `/output/${path.basename(outputLocation)}`,
+			});
+		}
 
 		const response = res.status(200).json({
 			jobId,
@@ -824,6 +913,135 @@ router.post('/generate-video', async (req: Request, res: Response) => {
 		});
 	}
 });
+
+// Save video metadata (transcript and merged voiceover)
+async function saveVideoMetadata(videoPath: string, storyboard: any): Promise<void> {
+	try {
+		const videoBasename = path.basename(videoPath, '.mp4');
+		const outputDir = path.dirname(videoPath);
+		
+		// Extract transcript from all frames
+		const transcriptParts: string[] = [];
+		const voiceoverFiles: string[] = [];
+		
+		for (const frame of storyboard.frames) {
+			// Add frame heading as section
+			if (frame.heading) {
+				transcriptParts.push(`\n[${frame.heading}]\n`);
+			}
+			
+			// Add voiceover script
+			if (frame.voiceoverScript) {
+				transcriptParts.push(frame.voiceoverScript);
+				transcriptParts.push('\n');
+			}
+			
+			// Collect voiceover audio files for merging
+			if (frame.voiceoverUrl) {
+				const audioPath = frame.voiceoverUrl.startsWith('/') 
+					? path.join(process.cwd(), 'public', frame.voiceoverUrl.substring(1))
+					: path.join(process.cwd(), 'public', frame.voiceoverUrl);
+				voiceoverFiles.push(audioPath);
+			}
+		}
+		
+		// Save transcript as TXT
+		const fullTranscript = transcriptParts.join('');
+		const transcriptPath = path.join(outputDir, `${videoBasename}-transcript.txt`);
+		await fs.writeFile(transcriptPath, fullTranscript, 'utf-8');
+		console.log(`[Save Metadata] ✅ Transcript saved: ${transcriptPath}`);
+		
+		// Save structured metadata as JSON
+		const metadata = {
+			title: storyboard.title,
+			timestamp: Date.now(),
+			duration: storyboard.frames.reduce((sum: number, f: any) => sum + (f.duration || 0), 0),
+			frames: storyboard.frames.map((f: any) => ({
+				id: f.id,
+				type: f.type,
+				heading: f.heading,
+				duration: f.duration,
+				voiceoverScript: f.voiceoverScript,
+			})),
+			transcript: fullTranscript,
+		};
+		const metadataPath = path.join(outputDir, `${videoBasename}-metadata.json`);
+		await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
+		console.log(`[Save Metadata] ✅ Metadata JSON saved: ${metadataPath}`);
+		
+		// Merge voiceover audio files using ffmpeg
+		if (voiceoverFiles.length > 0) {
+			await mergeVoiceoverAudio(voiceoverFiles, outputDir, videoBasename);
+		}
+	} catch (error: any) {
+		console.error('[Save Metadata] Failed to save metadata:', error.message);
+		// Don't throw - metadata save failure shouldn't fail the whole video generation
+	}
+}
+
+// Merge multiple audio files into one using ffmpeg
+async function mergeVoiceoverAudio(audioFiles: string[], outputDir: string, basename: string): Promise<void> {
+	try {
+		const {execFile} = await import('child_process');
+		const {promisify} = await import('util');
+		const execFileAsync = promisify(execFile);
+		
+		// Filter out non-existent files
+		const existingFiles: string[] = [];
+		for (const file of audioFiles) {
+			try {
+				await fs.access(file);
+				existingFiles.push(file);
+			} catch {
+				console.warn(`[Merge Audio] Skipping missing file: ${file}`);
+			}
+		}
+		
+		if (existingFiles.length === 0) {
+			console.log('[Merge Audio] No audio files to merge');
+			return;
+		}
+		
+		if (existingFiles.length === 1) {
+			// Only one file - just copy it
+			const mergedPath = path.join(outputDir, `${basename}-voiceover.mp3`);
+			await fs.copyFile(existingFiles[0], mergedPath);
+			console.log(`[Merge Audio] ✅ Single voiceover copied: ${mergedPath}`);
+			return;
+		}
+		
+		// Multiple files - merge using ffmpeg
+		const mergedPath = path.join(outputDir, `${basename}-voiceover.mp3`);
+		const listPath = path.join(outputDir, `${basename}-concat-list.txt`);
+		
+		// Create ffmpeg concat file
+		const concatContent = existingFiles
+			.map(file => `file '${file.replace(/'/g, "'\\''")}'`) // Escape single quotes
+			.join('\n');
+		await fs.writeFile(listPath, concatContent, 'utf-8');
+		
+		// Find ffmpeg
+		const ffmpegPath = path.join(process.cwd(), 'node_modules', 'ffmpeg-static', 'ffmpeg.exe');
+		const ffmpegCmd = await fs.access(ffmpegPath).then(() => ffmpegPath).catch(() => 'ffmpeg');
+		
+		// Merge audio files
+		await execFileAsync(ffmpegCmd, [
+			'-f', 'concat',
+			'-safe', '0',
+			'-i', listPath,
+			'-c', 'copy',
+			mergedPath
+		]);
+		
+		// Clean up concat list
+		await fs.unlink(listPath).catch(() => {});
+		
+		console.log(`[Merge Audio] ✅ Merged ${existingFiles.length} audio files: ${mergedPath}`);
+	} catch (error: any) {
+		console.error('[Merge Audio] Failed to merge audio:', error.message);
+		// Don't throw - audio merge failure shouldn't fail the whole video generation
+	}
+}
 
 async function generateVoiceoverScript(
 	frame: any,

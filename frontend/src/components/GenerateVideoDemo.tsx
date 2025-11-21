@@ -1,5 +1,6 @@
 import {useState, useRef, useEffect} from 'react';
 import {generateVideoFromAI, GenerateVideoFrame} from '../api/generateVideoClient';
+import VideoGenerationProgress from './VideoGenerationProgress';
 import './GenerateVideoDemo.css';
 
 // TypeScript types for Speech Recognition API
@@ -70,6 +71,11 @@ export function GenerateVideoDemo() {
 	const [jobId, setJobId] = useState<string | null>(null);
 	const [title, setTitle] = useState<string | null>(null);
 	const [videoUrl, setVideoUrl] = useState<string | null>(null);
+	
+	// Debug: Log state changes
+	useEffect(() => {
+		console.log('🔄 State changed:', { state, videoUrl, jobId, title });
+	}, [state, videoUrl, jobId, title]);
 	
 	// Voice input state
 	const [isRecording, setIsRecording] = useState(false);
@@ -177,18 +183,61 @@ export function GenerateVideoDemo() {
 		
 		setState('loading');
 		setError(null);
+		setVideoUrl(null);
+		setFrames([]);
+		
+		// Create a temporary job ID immediately for progress tracking
+		const tempJobId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+		setJobId(tempJobId);
 
 		try {
 			const response = await generateVideoFromAI({topic, description});
+			console.log('📦 API Response:', response);
 			setFrames(response.frames);
-			setJobId(response.jobId);
+			setJobId(response.jobId || tempJobId);
 			setTitle(response.title);
-			setVideoUrl(response.videoUrl);
-			setState('success');
+			
+			// Set videoUrl from API response (fallback if WebSocket doesn't work)
+			if (response.videoUrl) {
+				console.log('✅ Got video URL from API:', response.videoUrl);
+				setVideoUrl(response.videoUrl);
+				setState('success');
+			} else {
+				console.log('⏳ No video URL in response, waiting for WebSocket completion event...');
+			}
 		} catch (err: any) {
+			console.error('❌ API Error:', err);
 			setState('error');
 			setError(err?.response?.data?.error ?? err?.message ?? 'Failed to generate video plan.');
+			setJobId(null); // Clear job ID on error
 		}
+	};
+
+	const handleProgressComplete = (url: string) => {
+		console.log('✅ Video generation complete:', url);
+		if (url) {
+			console.log('📹 Setting video URL:', url);
+			setVideoUrl(url);
+			setState('success');
+			// Scroll to video
+			setTimeout(() => {
+				const videoPreview = document.querySelector('.generate-video-preview');
+				if (videoPreview) {
+					videoPreview.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				}
+			}, 300);
+		} else {
+			console.warn('⚠️ No video URL provided');
+			setError('Video generated but URL not found');
+			setState('error');
+		}
+	};
+
+	const handleProgressError = (errorMsg: string) => {
+		console.error('Video generation error:', errorMsg);
+		setError(errorMsg);
+		setState('error');
+		setJobId(null);
 	};
 
 	return (
@@ -234,21 +283,122 @@ export function GenerateVideoDemo() {
 				</button>
 			</form>
 
+			{/* Progress UI - Show when loading */}
+			{state === 'loading' && jobId && (
+				<div style={{
+					marginTop: '30px',
+					padding: '30px',
+					background: 'var(--bg-card)',
+					borderRadius: 'var(--radius-lg)',
+					border: '2px solid var(--border-primary)',
+				}}>
+					<VideoGenerationProgress
+						jobId={jobId}
+						onComplete={handleProgressComplete}
+						onError={handleProgressError}
+					/>
+				</div>
+			)}
+			
 			{state === 'error' && error ? <div className="generate-video-error">{error}</div> : null}
 
-			{state === 'success' ? (
+			{state === 'success' && videoUrl ? (
 				<div className="generate-video-results">
 					<h3>
 						Result: {title} <small>({jobId})</small>
 					</h3>
-					{videoUrl ? (
-						<div className="generate-video-preview">
-							<video controls src={videoUrl} />
-							<a href={videoUrl} target="_blank" rel="noreferrer">
-								Download MP4
+					<div className="generate-video-preview" style={{
+						marginTop: '20px',
+						padding: '20px',
+						background: 'var(--bg-card)',
+						borderRadius: 'var(--radius-lg)',
+						border: '2px solid #22c55e',
+					}}>
+						<div style={{
+							position: 'relative',
+							width: '100%',
+							maxWidth: '800px',
+							margin: '0 auto 20px auto',
+							borderRadius: '12px',
+							overflow: 'hidden',
+							boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+						}}>
+							<video
+								key={videoUrl}
+								controls
+								autoPlay
+								preload="auto"
+								playsInline
+								style={{
+									width: '100%',
+									height: 'auto',
+									display: 'block',
+									background: '#000',
+								}}
+								onError={(e) => {
+									console.error('❌ Video playback error:', e, 'URL:', videoUrl);
+									setError(`Failed to load video from: ${videoUrl}`);
+								}}
+								onLoadedData={() => {
+									console.log('✅ Video loaded successfully:', videoUrl);
+								}}
+								onLoadStart={() => {
+									console.log('⏳ Video loading started:', videoUrl);
+								}}
+							>
+								<source src={videoUrl} type="video/mp4" />
+								Your browser does not support the video tag.
+							</video>
+						</div>
+						<div style={{
+							display: 'flex',
+							gap: '12px',
+							justifyContent: 'center',
+							flexWrap: 'wrap',
+						}}>
+							<a 
+								href={videoUrl} 
+								target="_blank" 
+								rel="noreferrer"
+								style={{
+									padding: '12px 24px',
+									background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+									color: 'white',
+									textDecoration: 'none',
+									borderRadius: '8px',
+									fontWeight: '600',
+									display: 'inline-flex',
+									alignItems: 'center',
+									gap: '8px',
+									transition: 'transform 0.2s',
+								}}
+								onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+								onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+							>
+								<span>▶️</span> Open in New Tab
+							</a>
+							<a 
+								href={videoUrl} 
+								download
+								style={{
+									padding: '12px 24px',
+									background: '#22c55e',
+									color: 'white',
+									textDecoration: 'none',
+									borderRadius: '8px',
+									fontWeight: '600',
+									display: 'inline-flex',
+									alignItems: 'center',
+									gap: '8px',
+									transition: 'transform 0.2s',
+								}}
+								onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+								onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+							>
+								<span>⬇️</span> Download MP4
 							</a>
 						</div>
-					) : null}
+					</div>
 					<ol>
 						{frames.map((frame) => (
 							<li key={frame.id}>

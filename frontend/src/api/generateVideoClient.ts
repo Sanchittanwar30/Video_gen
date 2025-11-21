@@ -1,5 +1,7 @@
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 export interface GenerateVideoRequest {
 	topic: string;
 	description?: string;
@@ -27,7 +29,11 @@ export interface GenerateVideoResponse {
 export const generateVideoFromAI = async (
 	payload: GenerateVideoRequest
 ): Promise<GenerateVideoResponse> => {
-	const {data} = await axios.post<GenerateVideoResponse>('/api/generate-video', payload);
+	const {data} = await axios.post<GenerateVideoResponse>(`${API_BASE_URL}/api/generate-video`, payload);
+	
+	// Video URL is already correct (either relative path via Vite proxy, or absolute URL)
+	console.log('📹 Video URL from API:', data.videoUrl);
+	
 	return data;
 };
 

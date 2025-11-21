@@ -103,7 +103,15 @@ ONLY use phrases like:
 
 The prompt_for_image must be a simple, plain English sentence describing ONLY the visual elements to draw. Example: "Draw a rectangle labeled 'Object' with three arrows pointing to shapes labeled 'Square', 'Circle', and 'Triangle'."
 
-SPELLING REQUIREMENT: When describing text labels to include, emphasize that ALL words must be spelled correctly. Use exact spellings from the topic description. If technical terms are mentioned, use their exact spelling.
+🚨 CRITICAL SPELLING REQUIREMENT (HIGHEST PRIORITY):
+- ALL words in text labels MUST be spelled correctly with ZERO TOLERANCE for spelling mistakes
+- Extract ALL words from the topic and description - these are your spelling reference dictionary
+- Use EXACT spellings from the topic/description - copy them character-by-character
+- If a technical term appears in the topic, use that EXACT spelling - do not guess or approximate
+- Common spelling mistakes to AVOID: "recieve"→"receive", "seperate"→"separate", "definately"→"definitely", "occured"→"occurred", "accomodate"→"accommodate", "begining"→"beginning", "existance"→"existence", "maintainance"→"maintenance", "priviledge"→"privilege", "sucess"→"success"
+- Technical terms: "Database" (NOT "Databse"), "Server" (NOT "Servr"), "Client" (NOT "Clinet"), "System" (NOT "Sytem"), "Application" (NOT "Aplication"), "Network" (NOT "Netwrok"), "Polymorphism" (NOT "Polymorphisim"), "Inheritance" (NOT "Inheritence"), "Encapsulation" (NOT "Encapsulaton"), "Abstraction" (NOT "Abstracion")
+- If you are unsure of spelling, use simpler words you know are correct - NEVER guess
+- Spelling accuracy is MORE IMPORTANT than including every label - fewer correct labels are better than many misspelled ones
 
 Focus on visual storytelling through DIAGRAMS, FIGURES, and SHAPES. Generate 1-5 figure-focused whiteboard diagram frames with minimal text that explain the topic visually. Generate the appropriate number of frames based on topic complexity - simple topics may need 1-2 frames, complex topics may need up to 5 frames.
 The JSON must be valid. No prose or markdown.`;

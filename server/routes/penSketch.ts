@@ -11,6 +11,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { synthesizeSpeech } from '../services/deepgram';
+import { spawn } from 'child_process';
 
 const router = Router();
 
@@ -69,8 +70,10 @@ router.get('/verify-colab', async (req: Request, res: Response) => {
 	}
 });
 
-// Colab FastAPI server URL (set via environment variable)
+// Colab FastAPI server URL (set via environment variable) - optional, defaults to local
 const COLAB_FASTAPI_URL = process.env.COLAB_FASTAPI_URL || '';
+// Use local execution by default (set USE_LOCAL_PEN_SKETCH=false to use Colab)
+const USE_LOCAL_PEN_SKETCH = process.env.USE_LOCAL_PEN_SKETCH !== 'false';
 
 // Configure multer for file uploads
 const upload = multer({
@@ -193,21 +196,13 @@ router.post('/animate', upload.array('imageFiles', 10), async (req: Request, res
 	try {
 		const { 
 			imageUrls: imageUrlsJson,
-			// Enhanced algorithm parameters (inspired by image-to-animation-offline)
-			splitLen = 10,
-			objSkipRate = 8,
-			bckSkipRate = 14,
-			fps = 25,  // Default matches enhanced pipeline
-			durationPerImage = 2.0,  // Default matches enhanced pipeline (main_img_duration)
+			// Simplified animation parameters - only duration and fps control the speed
+			fps = 25,  // Frames per second
+			duration = 5.0,  // Duration in seconds (controls animation speed)
+			width = 1920,  // Video width
+			height = 1080,  // Video height
 			voiceoverScript,
 			generateVoiceover = true,
-			// Legacy parameters (kept for compatibility)
-			sketchStyle = 'clean',
-			strokeSpeed = 3.0,
-			lineThickness = 3,
-			quality = 'high',
-			width = 1920,
-			height = 1080,
 		} = req.body;
 
 		// Parse imageUrls if it's a JSON string
@@ -244,44 +239,48 @@ router.post('/animate', upload.array('imageFiles', 10), async (req: Request, res
 			});
 		}
 
-		if (!COLAB_FASTAPI_URL) {
-			return res.status(500).json({
-				error: 'COLAB_FASTAPI_URL not configured. Set it in environment variables.',
-			});
-		}
+		// Use local execution by default (unless explicitly disabled)
+		if (USE_LOCAL_PEN_SKETCH) {
+			console.log(`[Pen Sketch] 🏠 Using LOCAL execution (no Colab needed)`);
+		} else {
+			// Colab mode - check if server is accessible
+			if (!COLAB_FASTAPI_URL) {
+				return res.status(500).json({
+					error: 'COLAB_FASTAPI_URL not configured. Set it in environment variables or enable local execution with USE_LOCAL_PEN_SKETCH=true.',
+				});
+			}
 
-		// Check if Colab server is accessible before proceeding
-		try {
-			const healthCheck = await axios.get(`${COLAB_FASTAPI_URL}/health`, {
-				timeout: 5000,
-				validateStatus: (status) => status === 200
-			});
-			console.log(`[Pen Sketch] ✅ Colab server is accessible: ${COLAB_FASTAPI_URL}`);
-		} catch (error: any) {
-			const errorMessage = error.response?.status === 404 
-				? 'Colab server endpoint not found (404). The server may be offline or the ngrok tunnel is not active.'
-				: error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT'
-				? 'Cannot connect to Colab server. The server may be offline or the ngrok tunnel is not active.'
-				: `Colab server is not accessible: ${error.message}`;
-			
-			console.error(`[Pen Sketch] ❌ ${errorMessage}`);
-			console.error(`[Pen Sketch]    COLAB_FASTAPI_URL: ${COLAB_FASTAPI_URL}`);
-			console.error(`[Pen Sketch]    Please ensure:`);
-			console.error(`[Pen Sketch]    1. Colab FastAPI server is running`);
-			console.error(`[Pen Sketch]    2. ngrok tunnel is active (if using ngrok)`);
-			console.error(`[Pen Sketch]    3. COLAB_FASTAPI_URL is correct`);
-			
-			return res.status(503).json({
-				error: 'Colab server is not accessible',
-				message: errorMessage,
-				colab_url: COLAB_FASTAPI_URL,
-				suggestions: [
-					'Ensure Colab FastAPI server is running',
-					'Check if ngrok tunnel is active (if using ngrok)',
-					'Verify COLAB_FASTAPI_URL environment variable is correct',
-					'Try accessing the server URL directly in a browser to verify it\'s accessible'
-				]
-			});
+			// Check if Colab server is accessible before proceeding
+			try {
+				const healthCheck = await axios.get(`${COLAB_FASTAPI_URL}/health`, {
+					timeout: 5000,
+					validateStatus: (status) => status === 200
+				});
+				console.log(`[Pen Sketch] ✅ Colab server is accessible: ${COLAB_FASTAPI_URL}`);
+			} catch (error: any) {
+				const errorMessage = error.response?.status === 404 
+					? 'Colab server endpoint not found (404). The server may be offline or the ngrok tunnel is not active.'
+					: error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT'
+					? 'Cannot connect to Colab server. The server may be offline or the ngrok tunnel is not active.'
+					: `Colab server is not accessible: ${error.message}`;
+				
+				console.error(`[Pen Sketch] ❌ ${errorMessage}`);
+				console.error(`[Pen Sketch]    COLAB_FASTAPI_URL: ${COLAB_FASTAPI_URL}`);
+				console.error(`[Pen Sketch]    Tip: Set USE_LOCAL_PEN_SKETCH=true to use local execution instead`);
+				
+				return res.status(503).json({
+					error: 'Colab server is not accessible',
+					message: errorMessage,
+					colab_url: COLAB_FASTAPI_URL,
+					suggestion: 'Set USE_LOCAL_PEN_SKETCH=true in environment variables to use local execution',
+					suggestions: [
+						'Set USE_LOCAL_PEN_SKETCH=true to use local execution (recommended)',
+						'Or ensure Colab FastAPI server is running',
+						'Or check if ngrok tunnel is active (if using ngrok)',
+						'Or verify COLAB_FASTAPI_URL environment variable is correct'
+					]
+				});
+			}
 		}
 
 		// Generate job ID
@@ -384,145 +383,125 @@ router.post('/animate', upload.array('imageFiles', 10), async (req: Request, res
 			}
 		}
 
-		// Prepare form data
-		const FormData = require('form-data');
-		const formData = new FormData();
-		for (const imagePath of imagePaths) {
-			const imageBuffer = await fs.readFile(imagePath);
-			formData.append('images', imageBuffer, {
-				filename: path.basename(imagePath),
-				contentType: 'image/png',
+		// Execute locally or send to Colab
+		if (USE_LOCAL_PEN_SKETCH) {
+			// LOCAL EXECUTION - Run sketch_animate_whiteboard.py script (stroke-by-stroke drawing)
+			console.log(`[Pen Sketch] 🖊️  Running whiteboard animation locally using sketch_animate_whiteboard.py...`);
+			
+			// Prepare output path
+			const outputDir = path.join(process.cwd(), 'output', 'pen-sketch');
+			await fs.mkdir(outputDir, { recursive: true });
+			const outputPath = path.join(outputDir, `pen-sketch-${jobId}.mp4`);
+			
+			// Prepare Python script path
+			// Use whiteboard version for stroke-by-stroke path drawing (like YouTube whiteboard videos)
+			const scriptPath = path.join(process.cwd(), 'sketch_animate_whiteboard.py');
+			
+			// Use first image (sketch_animate_whiteboard.py processes one image at a time)
+			// If multiple images, process them sequentially
+			const firstImagePath = imagePaths[0];
+			
+			// Build command arguments for sketch_animate_whiteboard.py
+			const args = [
+				scriptPath,
+				firstImagePath,  // Input PNG (positional argument)
+				'--output', outputPath,
+				'--duration', duration.toString(),
+				'--fps', fps.toString(),
+				'--width', width.toString(),
+				'--height', height.toString(),
+				'--variant', `pen-sketch-${jobId}`,
+			];
+			
+			// Run Python script
+			job.status = 'processing';
+			console.log(`[Pen Sketch] 🐍 Executing: python ${args.join(' ')}`);
+			
+			// Process in background
+			processLocalAnimation(jobId, args, outputPath, tempDir);
+			
+			return res.status(202).json({
+				jobId,
+				status: 'processing',
+				mode: 'local',
+				createdAt: job.createdAt.toISOString(),
+				endpoints: {
+					status: `/api/pen-sketch/status/${jobId}`,
+					download: `/api/pen-sketch/download/${jobId}`,
+				},
 			});
-		}
-		// Enhanced algorithm parameters
-		formData.append('split_len', splitLen.toString());
-		formData.append('frame_rate', fps.toString());
-		formData.append('obj_skip_rate', objSkipRate.toString());
-		formData.append('bck_skip_rate', bckSkipRate.toString());
-		formData.append('main_img_duration', durationPerImage.toString());
-		
-		// Legacy parameters (for compatibility with older pipelines)
-		formData.append('fps', fps.toString());
-		formData.append('duration_per_image', durationPerImage.toString());
-		formData.append('job_id', jobId);
-		formData.append('sketch_style', sketchStyle);
-		formData.append('stroke_speed', strokeSpeed.toString());
-		formData.append('line_thickness', lineThickness.toString());
-		formData.append('quality', quality);
-		formData.append('width', width.toString());
-		formData.append('height', height.toString());
-		
-		// Add voiceover URL if available
-		if (voiceoverUrl) {
-			// Convert relative URL to absolute
-			const baseUrl = `${req.protocol}://${req.get('host')}`;
-			const absoluteVoiceoverUrl = voiceoverUrl.startsWith('http') 
-				? voiceoverUrl 
-				: `${baseUrl}${voiceoverUrl}`;
-			
-			// Warn if using localhost (may not be accessible from remote Colab server)
-			if (absoluteVoiceoverUrl.includes('localhost') || absoluteVoiceoverUrl.includes('127.0.0.1')) {
-				console.warn(`[Pen Sketch] ⚠️  Warning: Voiceover URL uses localhost: ${absoluteVoiceoverUrl}`);
-				console.warn(`[Pen Sketch]    This may not be accessible from remote Colab server.`);
-				console.warn(`[Pen Sketch]    Consider using a publicly accessible URL (e.g., ngrok) or skip voiceover.`);
-			}
-			
-			formData.append('voiceover_url', absoluteVoiceoverUrl);
-		}
-
-		// Send to Colab FastAPI (Enhanced Pipeline with object/background separation)
-		let colabResponse;
-		try {
-			colabResponse = await axios.post(
-				`${COLAB_FASTAPI_URL}/api/animate`,
-				formData,
-				{
-					headers: formData.getHeaders(),
-					timeout: 600000, // 10 minutes for enhanced pipeline processing
-					validateStatus: (status) => status >= 200 && status < 300
-				}
-			);
-		} catch (error: any) {
-			// Update job status to failed
-			job.status = 'failed';
-			job.error = 'Failed to send request to Colab server';
-			job.completedAt = new Date();
-			
-			// Check for ngrok-specific errors
-			if (error.response?.status === 404) {
-				const ngrokError = error.response?.headers?.['ngrok-error-code'];
-				if (ngrokError === 'ERR_NGROK_3200' || error.response?.data?.includes('ERR_NGROK_3200')) {
-					const errorMessage = 'Colab server endpoint is offline. The ngrok tunnel is not active or the server is not running.';
-					console.error(`[Pen Sketch] ❌ ${errorMessage}`);
-					console.error(`[Pen Sketch]    URL: ${COLAB_FASTAPI_URL}`);
-					console.error(`[Pen Sketch]    Please ensure:`);
-					console.error(`[Pen Sketch]    1. Colab FastAPI server is running`);
-					console.error(`[Pen Sketch]    2. ngrok tunnel is active`);
-					console.error(`[Pen Sketch]    3. COLAB_FASTAPI_URL points to the correct ngrok URL`);
-					
-					return res.status(503).json({
-						error: 'Colab server is offline',
-						message: errorMessage,
-						colab_url: COLAB_FASTAPI_URL,
-						ngrok_error: ngrokError,
-						suggestions: [
-							'Start the Colab FastAPI server',
-							'Start/restart the ngrok tunnel',
-							'Verify the ngrok URL matches COLAB_FASTAPI_URL',
-							'Check if the Colab notebook is still running'
-						]
-					});
-				}
-			}
-			
-			// Handle other connection errors
-			if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-				const errorMessage = `Cannot connect to Colab server at ${COLAB_FASTAPI_URL}. The server may be offline or unreachable.`;
-				console.error(`[Pen Sketch] ❌ ${errorMessage}`);
-				return res.status(503).json({
-					error: 'Cannot connect to Colab server',
-					message: errorMessage,
-					colab_url: COLAB_FASTAPI_URL,
-					error_code: error.code,
-					suggestions: [
-						'Verify the Colab server is running',
-						'Check if ngrok tunnel is active (if using ngrok)',
-						'Verify network connectivity',
-						'Check firewall settings'
-					]
+		} else {
+			// COLAB MODE - Send to Colab FastAPI
+			const FormData = require('form-data');
+			const formData = new FormData();
+			for (const imagePath of imagePaths) {
+				const imageBuffer = await fs.readFile(imagePath);
+				formData.append('images', imageBuffer, {
+					filename: path.basename(imagePath),
+					contentType: 'image/png',
 				});
 			}
+			// Enhanced algorithm parameters
+			// Simplified Colab parameters (if still using Colab)
+			// Simplified Colab parameters
+			formData.append('fps', fps.toString());
+			formData.append('duration', duration.toString());
+			formData.append('width', width.toString());
+			formData.append('height', height.toString());
 			
-			// Generic error handling
-			console.error(`[Pen Sketch] ❌ Error sending request to Colab server:`, error.message);
-			console.error(`[Pen Sketch]    Status: ${error.response?.status || 'N/A'}`);
-			console.error(`[Pen Sketch]    URL: ${COLAB_FASTAPI_URL}/api/animate`);
+			// Legacy parameters (for compatibility with older pipelines)
+			formData.append('fps', fps.toString());
+			formData.append('duration', duration.toString());
+			formData.append('job_id', jobId);
+			formData.append('width', width.toString());
+			formData.append('height', height.toString());
 			
-			return res.status(error.response?.status || 500).json({
-				error: 'Failed to send request to Colab server',
-				message: error.message || 'Unknown error',
-				colab_url: COLAB_FASTAPI_URL,
-				status: error.response?.status,
-				details: error.response?.data || error.stack
+			// Add voiceover URL if available
+			if (voiceoverUrl) {
+				const baseUrl = `${req.protocol}://${req.get('host')}`;
+				const absoluteVoiceoverUrl = voiceoverUrl.startsWith('http') 
+					? voiceoverUrl 
+					: `${baseUrl}${voiceoverUrl}`;
+				formData.append('voiceover_url', absoluteVoiceoverUrl);
+			}
+
+			let colabResponse;
+			try {
+				colabResponse = await axios.post(
+					`${COLAB_FASTAPI_URL}/api/animate`,
+					formData,
+					{
+						headers: formData.getHeaders(),
+						timeout: 600000,
+						validateStatus: (status) => status >= 200 && status < 300
+					}
+				);
+			} catch (error: any) {
+				job.status = 'failed';
+				job.error = 'Failed to send request to Colab server';
+				job.completedAt = new Date();
+				return res.status(503).json({
+					error: 'Failed to send request to Colab server',
+					message: error.message || 'Unknown error',
+					colab_url: COLAB_FASTAPI_URL,
+				});
+			}
+
+			job.status = 'processing';
+			pollColabJob(jobId, colabResponse.data.job_id, tempDir);
+
+			return res.status(202).json({
+				jobId,
+				status: 'processing',
+				colabJobId: colabResponse.data.job_id,
+				mode: 'colab',
+				createdAt: job.createdAt.toISOString(),
+				endpoints: {
+					status: `/api/pen-sketch/status/${jobId}`,
+					download: `/api/pen-sketch/download/${jobId}`,
+				},
 			});
 		}
-
-		// Update job with Colab job ID
-		job.status = 'processing';
-
-		// Poll for completion in background
-		pollColabJob(jobId, colabResponse.data.job_id, tempDir);
-
-		return res.status(202).json({
-			jobId,
-			status: 'processing',
-			colabJobId: colabResponse.data.job_id,
-			createdAt: job.createdAt.toISOString(),
-			endpoints: {
-				status: `/api/pen-sketch/status/${jobId}`,
-				download: `/api/pen-sketch/download/${jobId}`,
-			},
-		});
 	} catch (error: any) {
 		console.error('[Pen Sketch] ❌ Error creating pen-sketch animation:', error);
 		
@@ -556,6 +535,169 @@ router.post('/animate', upload.array('imageFiles', 10), async (req: Request, res
 		});
 	}
 });
+
+/**
+ * Process animation locally using Python script
+ */
+async function processLocalAnimation(
+	localJobId: string,
+	args: string[],
+	outputPath: string,
+	tempDir: string
+) {
+	const job = jobs.get(localJobId);
+	if (!job) return;
+
+	try {
+		console.log(`[Pen Sketch] 🐍 Starting local Python script...`);
+		
+		// Determine Python command (python3 or python)
+		const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+		
+		// Spawn Python process with UTF-8 encoding for Windows
+		const spawnOptions: any = {
+			cwd: process.cwd(),
+			stdio: ['ignore', 'pipe', 'pipe'],
+		};
+		
+		// Set UTF-8 encoding for Windows
+		if (process.platform === 'win32') {
+			spawnOptions.env = {
+				...process.env,
+				PYTHONIOENCODING: 'utf-8',
+			};
+		}
+		
+		const pythonProcess = spawn(pythonCmd, args, spawnOptions);
+
+		let stdout = '';
+		let stderr = '';
+
+		pythonProcess.stdout?.on('data', (data) => {
+			const output = data.toString('utf8');
+			stdout += output;
+			// Only log non-JSON lines (JSON will be parsed separately)
+			if (!output.trim().startsWith('{') && !output.trim().startsWith('[')) {
+				console.log(`[Pen Sketch Python] ${output.trim()}`);
+			}
+		});
+
+		pythonProcess.stderr?.on('data', (data) => {
+			const output = data.toString('utf8');
+			stderr += output;
+			console.error(`[Pen Sketch Python Error] ${output.trim()}`);
+		});
+
+		// Wait for process to complete
+		const exitCode = await new Promise<number>((resolve) => {
+			pythonProcess.on('close', (code) => {
+				resolve(code || 0);
+			});
+		});
+
+		if (exitCode !== 0) {
+			throw new Error(`Python script failed with exit code ${exitCode}: ${stderr}`);
+		}
+
+		// sketch_animate_whiteboard.py outputs directly to the specified path
+		// Check if output file exists (with retry for filesystem sync delay)
+		const finalOutputPath = outputPath;
+		let fileFound = false;
+		
+		for (let attempt = 0; attempt < 10; attempt++) {
+			try {
+				await fs.access(finalOutputPath);
+				const stats = await fs.stat(finalOutputPath);
+				if (stats.size > 0) {
+					console.log(`[Pen Sketch] ✓ Output file verified: ${finalOutputPath} (${stats.size} bytes)`);
+					fileFound = true;
+					break;
+				} else {
+					console.warn(`[Pen Sketch] File exists but is empty (attempt ${attempt + 1}/10)`);
+				}
+			} catch {
+				console.warn(`[Pen Sketch] File not found yet (attempt ${attempt + 1}/10)`);
+			}
+			
+			// Wait a bit for filesystem to sync
+			await new Promise(resolve => setTimeout(resolve, 200));
+		}
+		
+		if (!fileFound) {
+			// Try alternative location (in case script created it elsewhere)
+			const outputDir = path.join(process.cwd(), 'output', 'pen-sketch');
+			const possiblePath = path.join(outputDir, `pen-sketch-${localJobId}.mp4`);
+			try {
+				await fs.access(possiblePath);
+				console.log(`[Pen Sketch] Found output at alternative location: ${possiblePath}`);
+			} catch {
+				throw new Error(`Output video file not found after 10 attempts. Expected: ${finalOutputPath}`);
+			}
+		}
+
+		// Add voiceover if available
+		if (job.voiceoverUrl) {
+			try {
+				let voiceoverPath: string;
+				if (job.voiceoverUrl.startsWith('/')) {
+					const relativePath = job.voiceoverUrl.substring(1);
+					voiceoverPath = path.join(process.cwd(), 'public', relativePath);
+				} else if (path.isAbsolute(job.voiceoverUrl)) {
+					voiceoverPath = job.voiceoverUrl;
+				} else {
+					voiceoverPath = path.join(process.cwd(), 'public', job.voiceoverUrl);
+				}
+				
+				await fs.access(voiceoverPath);
+				
+				const finalVideoWithAudio = path.join(outputDir, `pen-sketch-${localJobId}-final.mp4`);
+				const ffmpeg = require('fluent-ffmpeg');
+				const ffmpegStatic = require('ffmpeg-static');
+				
+				if (ffmpegStatic) {
+					ffmpeg.setFfmpegPath(ffmpegStatic);
+				}
+				
+				await new Promise<void>((resolve, reject) => {
+					ffmpeg(finalVideoPath)
+						.input(voiceoverPath)
+						.videoCodec('copy')
+						.audioCodec('aac')
+						.outputOptions([
+							'-map 0:v:0',
+							'-map 1:a:0',
+							'-shortest',
+							'-movflags +faststart'
+						])
+						.on('end', () => resolve())
+						.on('error', (err: Error) => reject(err))
+						.save(finalVideoWithAudio);
+				});
+				
+				await fs.unlink(finalVideoPath);
+				await fs.rename(finalVideoWithAudio, finalVideoPath);
+				console.log(`[Pen Sketch] ✅ Added voiceover to video`);
+			} catch (error: any) {
+				console.warn(`[Pen Sketch] ⚠️  Failed to add voiceover:`, error.message);
+			}
+		}
+
+		// Update job
+		job.status = 'completed';
+		job.completedAt = new Date();
+		job.videoUrl = `/output/pen-sketch/pen-sketch-${localJobId}.mp4`;
+
+		// Cleanup temp files
+		await fs.rm(tempDir, { recursive: true, force: true });
+
+		console.log(`[Pen Sketch] ✅ Local animation completed: ${localJobId}`);
+	} catch (error: any) {
+		console.error(`[Pen Sketch] ❌ Local animation failed:`, error);
+		job.status = 'failed';
+		job.error = error.message || 'Local animation failed';
+		job.completedAt = new Date();
+	}
+}
 
 /**
  * Poll Colab job for completion

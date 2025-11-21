@@ -15,17 +15,9 @@ export default function PenSketchTest() {
 	const [error, setError] = useState<string | null>(null);
 	const [voiceoverScript, setVoiceoverScript] = useState('');
 	const [generateVoiceover, setGenerateVoiceover] = useState(true);
-	// Enhanced algorithm parameters (inspired by image-to-animation-offline)
-	const [splitLen, setSplitLen] = useState(10);  // Path segmentation granularity
-	const [objSkipRate, setObjSkipRate] = useState(8);  // Object drawing speed (lower = slower)
-	const [bckSkipRate, setBckSkipRate] = useState(14);  // Background drawing speed (lower = slower)
-	const [frameRate, setFrameRate] = useState(25);  // Video frame rate
-	const [mainImgDuration, setMainImgDuration] = useState(5.0);  // Duration per image (seconds) - increased for better animation
-	// Legacy parameters (kept for compatibility)
-	const [sketchStyle, setSketchStyle] = useState('clean');
-	const [strokeSpeed, setStrokeSpeed] = useState(3.0);
-	const [lineThickness, setLineThickness] = useState(3);
-	const [quality, setQuality] = useState('high');
+	// Simplified animation parameters - only duration and fps control speed
+	const [frameRate, setFrameRate] = useState(25);  // Video frame rate (FPS)
+	const [duration, setDuration] = useState(8.0);  // Animation duration in seconds (controls speed)
 	const [videoWidth, setVideoWidth] = useState(1920);
 	const [videoHeight, setVideoHeight] = useState(1080);
 	const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
@@ -122,21 +114,13 @@ export default function PenSketchTest() {
 				uploadedFiles.forEach(file => {
 					formData.append('imageFiles', file);
 				});
-				// Enhanced algorithm parameters
-				formData.append('splitLen', splitLen.toString());
+				// Simple animation parameters
 				formData.append('fps', frameRate.toString());
-				formData.append('objSkipRate', objSkipRate.toString());
-				formData.append('bckSkipRate', bckSkipRate.toString());
-				formData.append('durationPerImage', mainImgDuration.toString());
-				formData.append('voiceoverScript', voiceoverScript || '');
-				formData.append('generateVoiceover', generateVoiceover.toString());
-				// Legacy parameters (for compatibility)
-				formData.append('sketchStyle', sketchStyle);
-				formData.append('strokeSpeed', strokeSpeed.toString());
-				formData.append('lineThickness', lineThickness.toString());
-				formData.append('quality', quality);
+				formData.append('duration', duration.toString());
 				formData.append('width', videoWidth.toString());
 				formData.append('height', videoHeight.toString());
+				formData.append('voiceoverScript', voiceoverScript || '');
+				formData.append('generateVoiceover', generateVoiceover.toString());
 
 				const response = await axios.post('/api/pen-sketch/animate', formData, {
 					headers: {
@@ -150,21 +134,12 @@ export default function PenSketchTest() {
 				// Use existing image URLs
 				const response = await axios.post('/api/pen-sketch/animate', {
 					imageUrls: selectedImages,
-					// Enhanced algorithm parameters
-					splitLen,
 					fps: frameRate,
-					objSkipRate,
-					bckSkipRate,
-					durationPerImage: mainImgDuration,
-					voiceoverScript: voiceoverScript || undefined,
-					generateVoiceover,
-					// Legacy parameters (for compatibility)
-					sketchStyle,
-					strokeSpeed,
-					lineThickness,
-					quality,
+					duration: duration,
 					width: videoWidth,
 					height: videoHeight,
+					voiceoverScript: voiceoverScript || undefined,
+					generateVoiceover,
 				});
 
 				setJobId(response.data.jobId);
@@ -445,7 +420,7 @@ export default function PenSketchTest() {
 				)}
 			</div>
 
-			{/* Enhanced Animation Options (inspired by image-to-animation-offline) */}
+			{/* Simplified Animation Settings */}
 			<div style={{ 
 				marginBottom: '20px', 
 				padding: '15px', 
@@ -460,7 +435,7 @@ export default function PenSketchTest() {
 					marginBottom: '15px',
 					color: 'var(--text-primary)'
 				}}>
-					Enhanced Sketching Settings
+					Animation Settings
 				</h4>
 				<p style={{ 
 					fontSize: '12px', 
@@ -468,87 +443,61 @@ export default function PenSketchTest() {
 					marginBottom: '15px', 
 					fontStyle: 'italic' 
 				}}>
-					Based on image-to-animation-offline algorithm with object/background separation
+					Control the speed and quality of your whiteboard animation
 				</p>
 				
-				<div style={{ marginBottom: '15px' }}>
+				{/* Duration Slider - Featured */}
+				<div style={{ 
+					marginBottom: '15px',
+					padding: '12px',
+					backgroundColor: 'rgba(99, 102, 241, 0.1)',
+					border: '2px solid var(--color-primary)',
+					borderRadius: 'var(--radius-md)'
+				}}>
 					<label style={{ 
 						display: 'block', 
-						marginBottom: '5px',
-						color: 'var(--text-primary)'
+						marginBottom: '8px',
+						color: 'var(--text-primary)',
+						fontSize: '16px',
+						fontWeight: 'bold'
 					}}>
-						Split Length: {splitLen} (Path segmentation granularity)
+						⏱️ Animation Duration: {duration.toFixed(1)} seconds
 					</label>
 					<input
 						type="range"
-						min="5"
-						max="30"
-						step="1"
-						value={splitLen}
-						onChange={(e) => setSplitLen(parseInt(e.target.value))}
-						style={{ width: '100%' }}
+						min="3.0"
+						max="15.0"
+						step="0.5"
+						value={duration}
+						onChange={(e) => setDuration(parseFloat(e.target.value))}
+						style={{ 
+							width: '100%',
+							height: '8px',
+							cursor: 'pointer'
+						}}
 					/>
 					<div style={{ 
-						fontSize: '12px', 
+						display: 'flex',
+						justifyContent: 'space-between',
+						fontSize: '11px', 
 						color: 'var(--text-secondary)', 
 						marginTop: '5px' 
 					}}>
-						Smaller = more segments, finer control | Larger = fewer segments, faster
+						<span>3s (fast)</span>
+						<span>Recommended: 6-8s</span>
+						<span>15s (slow)</span>
 					</div>
-				</div>
-
-				<div style={{ marginBottom: '15px' }}>
-					<label style={{ 
-						display: 'block', 
-						marginBottom: '5px',
-						color: 'var(--text-primary)'
-					}}>
-						Object Skip Rate: {objSkipRate} (Object drawing speed)
-					</label>
-					<input
-						type="range"
-						min="3"
-						max="15"
-						step="1"
-						value={objSkipRate}
-						onChange={(e) => setObjSkipRate(parseInt(e.target.value))}
-						style={{ width: '100%' }}
-					/>
 					<div style={{ 
 						fontSize: '12px', 
-						color: 'var(--text-secondary)', 
-						marginTop: '5px' 
+						color: 'var(--text-primary)', 
+						marginTop: '8px',
+						fontStyle: 'italic'
 					}}>
-						Lower = slower, more detailed object drawing | Higher = faster object drawing
+						💡 Shorter = faster drawing | Longer = slower, more detailed animation
 					</div>
 				</div>
 
-				<div style={{ marginBottom: '15px' }}>
-					<label style={{ 
-						display: 'block', 
-						marginBottom: '5px',
-						color: 'var(--text-primary)'
-					}}>
-						Background Skip Rate: {bckSkipRate} (Background drawing speed)
-					</label>
-					<input
-						type="range"
-						min="8"
-						max="20"
-						step="1"
-						value={bckSkipRate}
-						onChange={(e) => setBckSkipRate(parseInt(e.target.value))}
-						style={{ width: '100%' }}
-					/>
-					<div style={{ 
-						fontSize: '12px', 
-						color: 'var(--text-secondary)', 
-						marginTop: '5px' 
-					}}>
-						Lower = slower background | Higher = faster background (typically faster than objects)
-					</div>
-				</div>
-
+				{/* Frame Rate */}
 				<div style={{ marginBottom: '15px' }}>
 					<label style={{ 
 						display: 'block', 
@@ -566,85 +515,16 @@ export default function PenSketchTest() {
 						onChange={(e) => setFrameRate(parseInt(e.target.value))}
 						style={{ width: '100%' }}
 					/>
-				</div>
-
-				<div style={{ 
-					marginBottom: '15px',
-					padding: '12px',
-					backgroundColor: 'rgba(99, 102, 241, 0.1)',
-					border: '2px solid var(--color-primary)',
-					borderRadius: 'var(--radius-md)'
-				}}>
-					<label style={{ 
-						display: 'block', 
-						marginBottom: '8px',
-						color: 'var(--text-primary)',
-						fontSize: '16px',
-						fontWeight: 'bold'
-					}}>
-						⏱️ Animation Duration: {mainImgDuration.toFixed(1)} seconds per image
-					</label>
-					<input
-						type="range"
-						min="2.0"
-						max="15.0"
-						step="0.5"
-						value={mainImgDuration}
-						onChange={(e) => setMainImgDuration(parseFloat(e.target.value))}
-						style={{ 
-							width: '100%',
-							height: '8px',
-							cursor: 'pointer'
-						}}
-					/>
 					<div style={{ 
-						display: 'flex',
-						justifyContent: 'space-between',
-						fontSize: '11px', 
+						fontSize: '12px', 
 						color: 'var(--text-secondary)', 
 						marginTop: '5px' 
 					}}>
-						<span>2.0s (fast)</span>
-						<span>Recommended: 5-8s</span>
-						<span>15.0s (slow)</span>
-					</div>
-					<div style={{ 
-						fontSize: '12px', 
-						color: 'var(--text-primary)', 
-						marginTop: '8px',
-						fontStyle: 'italic'
-					}}>
-						💡 Longer duration = more time to see progressive drawing + final image display
+						Higher = smoother animation (recommended: 25-30 FPS)
 					</div>
 				</div>
 
-				<div style={{ marginBottom: '15px' }}>
-					<label style={{ 
-						display: 'block', 
-						marginBottom: '5px',
-						color: 'var(--text-primary)'
-					}}>
-						Video Quality:
-					</label>
-					<select
-						value={quality}
-						onChange={(e) => setQuality(e.target.value)}
-						style={{
-							width: '100%',
-							padding: '8px',
-							borderRadius: 'var(--radius-md)',
-							border: '1px solid var(--border-primary)',
-							backgroundColor: 'var(--bg-input)',
-							color: 'var(--text-primary)',
-							fontFamily: 'inherit',
-						}}
-					>
-						<option value="high">High (Best quality, larger file)</option>
-						<option value="medium">Medium (Balanced)</option>
-						<option value="low">Low (Smaller file, faster)</option>
-					</select>
-				</div>
-
+				{/* Video Resolution */}
 				<div>
 					<label style={{ 
 						display: 'block', 

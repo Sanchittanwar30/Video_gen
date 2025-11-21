@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import SkeletonLoader from './SkeletonLoader';
 
 interface ShowcaseItem {
 	name: string;
@@ -30,6 +31,7 @@ const FALLBACK_ITEMS: ShowcaseItem[] = [
 
 export default function ShowcaseGallery() {
 	const [showcaseItems, setShowcaseItems] = useState<ShowcaseItem[]>(FALLBACK_ITEMS);
+	const [loading, setLoading] = useState(true);
 	const [playingVideos, setPlayingVideos] = useState<Set<number>>(new Set());
 	const [mutedVideos, setMutedVideos] = useState<Set<number>>(new Set([0, 1, 2, 3])); // Start all muted
 	const [fullscreenVideo, setFullscreenVideo] = useState<number | null>(null);
@@ -39,6 +41,7 @@ export default function ShowcaseGallery() {
 	
 	// Load showcase items from metadata
 	useEffect(() => {
+		setLoading(true);
 		fetch('/assets/showcase/showcase-metadata.json')
 			.then(res => res.json())
 			.then((data: ShowcaseMetadata) => {
@@ -47,11 +50,14 @@ export default function ShowcaseGallery() {
 					// Initialize all videos as muted
 					setMutedVideos(new Set(data.items.map((_, idx) => idx)));
 				}
+				// Simulate minimum loading time for smooth UX
+				setTimeout(() => setLoading(false), 800);
 			})
 			.catch((err) => {
 				// Use fallback items if metadata not available
 				console.error('Failed to load showcase metadata:', err);
 				console.log('Using fallback showcase items');
+				setTimeout(() => setLoading(false), 800);
 			});
 	}, []);
 
@@ -180,6 +186,14 @@ export default function ShowcaseGallery() {
 			maxWidth: '1200px',
 			margin: '0 auto',
 		}}>
+			<style>{`
+				@media (max-width: 768px) {
+					.showcase-gallery-grid {
+						grid-template-columns: 1fr !important;
+						max-width: 500px !important;
+					}
+				}
+			`}</style>
 			<div style={{
 				textAlign: 'center',
 				marginBottom: '40px',
@@ -205,18 +219,40 @@ export default function ShowcaseGallery() {
 				</p>
 			</div>
 
-			<div style={{
-				display: 'grid',
-				gridTemplateColumns: 'repeat(2, 1fr)',
-				gap: '24px',
-				marginTop: '30px',
-				maxWidth: '1000px',
-				marginLeft: 'auto',
-				marginRight: 'auto',
-			}}>
+			<div 
+				className="showcase-gallery-grid"
+				style={{
+					display: 'grid',
+					gridTemplateColumns: 'repeat(2, 1fr)',
+					gap: '24px',
+					marginTop: '30px',
+					maxWidth: '1000px',
+					marginLeft: 'auto',
+					marginRight: 'auto',
+				}}>
+				<style>{`
+					@keyframes scaleIn {
+						from {
+							transform: scale(0.9);
+							opacity: 0;
+						}
+						to {
+							transform: scale(1);
+							opacity: 1;
+						}
+					}
+					.showcase-card {
+						animation: scaleIn 0.5s ease-out both;
+					}
+					.showcase-card:nth-child(1) { animation-delay: 0s; }
+					.showcase-card:nth-child(2) { animation-delay: 0.1s; }
+					.showcase-card:nth-child(3) { animation-delay: 0.2s; }
+					.showcase-card:nth-child(4) { animation-delay: 0.3s; }
+				`}</style>
 				{showcaseItems.map((item, index) => (
 					<div
 						key={index}
+						className="showcase-card"
 						style={{
 							background: 'var(--bg-card)',
 							border: '1px solid var(--border-primary)',

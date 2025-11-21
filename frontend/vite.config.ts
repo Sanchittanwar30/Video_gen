@@ -12,6 +12,14 @@ export default defineConfig({
         timeout: 600000, // 10 minutes timeout for long-running video generation
         proxyTimeout: 600000, // 10 minutes proxy timeout
       },
+      '/output': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/assets': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
       '/ws': {
         target: 'ws://localhost:3001',
         ws: true,

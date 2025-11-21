@@ -850,7 +850,7 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 	return (
 		<AbsoluteFill
 			style={{
-				backgroundColor: '#000000', // Black background for white sketching
+				backgroundColor: '#ffffff', // White background for black marker sketching
 				display: 'flex',
 				alignItems: 'center',
 				justifyContent: 'center',
@@ -878,10 +878,10 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 						height: '100%',
 					}}
 				>
-					{/* Stroke layer: white sketching on black background; no fills */}
+					{/* Stroke layer: black marker on white background; no fills */}
 					<g
 						fill="none"
-						stroke="#ffffff"
+						stroke="#000000"
 						strokeWidth="2.5"
 						strokeLinecap="round"
 						strokeLinejoin="round"
@@ -925,7 +925,7 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 										strokeDashoffset={dashOffset}
 										vectorEffect="non-scaling-stroke"
 										fill="none"
-										stroke="#ffffff"
+										stroke="#000000"
 										strokeWidth="2.5"
 										strokeLinecap="round"
 										strokeLinejoin="round"
@@ -998,7 +998,7 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 										key={`path-${index}`}
 										d={path.d}
 										fill="none"
-										stroke="#ffffff"
+										stroke="#000000"
 										strokeWidth="2.5"
 										strokeLinecap="round"
 										strokeLinejoin="round"
@@ -1020,7 +1020,7 @@ export const WhiteboardAnimatorPrecise: React.FC<WhiteboardAnimatorPreciseProps>
 							const dashArray = `${dashLength} ${dashLength * 1000}`;
 							const dashOffset = dashLength * (1 - pathProgress);
 
-							// White strokes for visible sketching animation on black background
+							// Black marker strokes for visible sketching animation on white background
 							return (
 								<path
 									key={`path-${index}`}

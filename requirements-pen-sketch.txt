@@ -1,0 +1,14 @@
+# Python dependencies for Sketch Animation (sketch_animate.py)
+# Install with: pip install -r requirements-pen-sketch.txt
+#
+# NOTE: For Python 3.14+, numpy 2.x has pre-built wheels
+# If installation fails, try: pip install --only-binary :all: -r requirements-pen-sketch.txt
+#
+# NOTE: cairosvg is optional - requires system Cairo library (GTK+ runtime on Windows)
+# Script will work without it using fallback rendering
+
+opencv-python>=4.8.0
+numpy>=2.0.0
+pillow>=10.0.0
+# cairosvg>=2.7.0  # Optional - requires system Cairo library
+

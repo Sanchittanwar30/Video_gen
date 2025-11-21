@@ -69,9 +69,49 @@ IMPORTANT: Each prompt_for_image must be specific to the topic and create a mean
 
 CRITICAL: The prompt_for_image should describe what to DRAW, not what to LABEL. Do NOT include any text in the prompt that suggests adding labels like "visual_aid", "visual aid", "diagram", "chart", or any descriptive text about what the image is. Only describe the actual educational content to be drawn.
 
-SPELLING REQUIREMENT: When describing text labels to include, emphasize that ALL words must be spelled correctly. Use exact spellings from the topic description. If technical terms are mentioned, use their exact spelling.
+🚫 ABSOLUTELY FORBIDDEN - THESE WORDS MUST NEVER APPEAR IN prompt_for_image:
+- "visual_aid" - FORBIDDEN WORD, NEVER USE
+- "visual aid" - FORBIDDEN PHRASE, NEVER USE
+- "content aid" or "content_aid" - FORBIDDEN WORDS, NEVER USE
+- "mermaid" - FORBIDDEN WORD, NEVER USE (this is code syntax, not drawing)
+- "diagram" - FORBIDDEN as a label (you can say "draw shapes" but not "draw a diagram")
+- "chart" - FORBIDDEN as a label
+- "figure" - FORBIDDEN as a label
+- "type :" or "Type :" - FORBIDDEN PATTERN, NEVER USE (e.g., "type : box", "type : whiteboard", "type : white black marker")
+- "content aid :" - FORBIDDEN PATTERN, NEVER USE
+- Any JSON structures, code blocks, or metadata syntax
+- Any Mermaid syntax (graph TD, -->, [], (), etc.) - Mermaid is CODE, not drawing
+- Any "Type:", "type :", "Style:", "Category:", "content aid :" or key:value metadata - FORBIDDEN
+- Any backticks, code fences, or technical syntax
+- Any structured data formats or schemas
 
-🚫 FORBIDDEN IN PROMPTS: Never include "visual_aid", "visual aid", or any descriptive labels in the prompt_for_image. The prompt should only describe the educational content to draw, not labels about what the image is.
+CRITICAL INSTRUCTION: When generating prompt_for_image, imagine you are a teacher telling another teacher what to draw on a whiteboard. Use ONLY simple, direct instructions like:
+- "Draw a rectangle with the text 'Object' inside it"
+- "Draw three circles connected by arrows"
+- "Draw a flowchart with boxes labeled 'Start', 'Process', 'End'"
+
+DO NOT use phrases like:
+- "Create a visual aid showing..." ❌
+- "Draw a mermaid diagram..." ❌
+- "Generate a diagram of type..." ❌
+- "Use mermaid syntax to..." ❌
+
+ONLY use phrases like:
+- "Draw shapes showing..." ✅
+- "Create a flowchart with..." ✅
+- "Draw boxes and arrows representing..." ✅
+
+The prompt_for_image must be a simple, plain English sentence describing ONLY the visual elements to draw. Example: "Draw a rectangle labeled 'Object' with three arrows pointing to shapes labeled 'Square', 'Circle', and 'Triangle'."
+
+🚨 CRITICAL SPELLING REQUIREMENT (HIGHEST PRIORITY):
+- ALL words in text labels MUST be spelled correctly with ZERO TOLERANCE for spelling mistakes
+- Extract ALL words from the topic and description - these are your spelling reference dictionary
+- Use EXACT spellings from the topic/description - copy them character-by-character
+- If a technical term appears in the topic, use that EXACT spelling - do not guess or approximate
+- Common spelling mistakes to AVOID: "recieve"→"receive", "seperate"→"separate", "definately"→"definitely", "occured"→"occurred", "accomodate"→"accommodate", "begining"→"beginning", "existance"→"existence", "maintainance"→"maintenance", "priviledge"→"privilege", "sucess"→"success"
+- Technical terms: "Database" (NOT "Databse"), "Server" (NOT "Servr"), "Client" (NOT "Clinet"), "System" (NOT "Sytem"), "Application" (NOT "Aplication"), "Network" (NOT "Netwrok"), "Polymorphism" (NOT "Polymorphisim"), "Inheritance" (NOT "Inheritence"), "Encapsulation" (NOT "Encapsulaton"), "Abstraction" (NOT "Abstracion")
+- If you are unsure of spelling, use simpler words you know are correct - NEVER guess
+- Spelling accuracy is MORE IMPORTANT than including every label - fewer correct labels are better than many misspelled ones
 
 Focus on visual storytelling through DIAGRAMS, FIGURES, and SHAPES. Generate 1-5 figure-focused whiteboard diagram frames with minimal text that explain the topic visually. Generate the appropriate number of frames based on topic complexity - simple topics may need 1-2 frames, complex topics may need up to 5 frames.
 The JSON must be valid. No prose or markdown.`;
@@ -106,21 +146,151 @@ const validatePlan = (plan: StructuredVideoPlan): StructuredVideoPlan => {
 		// Ensure whiteboard diagrams have detailed prompts and sanitize them
 		let prompt_for_image = frame.prompt_for_image;
 		if (type === 'whiteboard_diagram' && prompt_for_image) {
-			// Sanitize prompt to remove metadata, JSON, code blocks, etc.
+			// ULTRA-AGGRESSIVE sanitization to remove ALL metadata, JSON, code blocks, Mermaid, visual_aid, etc.
+			// This is the final defense - remove these terms completely
 			prompt_for_image = prompt_for_image
-				.replace(/```json[\s\S]*?```/gi, '') // Remove JSON code blocks
-				.replace(/```[\s\S]*?```/gi, '') // Remove any code blocks
-				.replace(/\{[^}]*"visual_aid"[^}]*\}/gi, '') // Remove JSON objects with visual_aid
-				.replace(/\{[^}]*"drawing_[^}]*\}/gi, '') // Remove JSON objects with drawing_*
-				.replace(/\{[^}]*"type"[^}]*\}/gi, '') // Remove JSON objects with type
-				.replace(/\[[^\]]*"visual_aid"[^\]]*\]/gi, '') // Remove arrays with visual_aid
-				.replace(/visual_aid/gi, '')
-				.replace(/visual aid/gi, '')
+				// Remove code blocks (JSON, markdown, Mermaid, etc.) - be EXTREMELY aggressive
+				.replace(/```mermaid[\s\S]*?```/gi, '') // Remove Mermaid code blocks FIRST (most common)
+				.replace(/```[\s\S]*?```/gi, '') // Remove ALL other code blocks
+				.replace(/`[^`]*`/g, '') // Remove inline code
+				// Remove Mermaid code blocks without backticks (multiline patterns)
+				.replace(/mermaid\s*\n[\s\S]*?graph[\s\S]*?end/gi, '') // Mermaid without backticks
+				.replace(/graph\s+(TD|LR|TB|RL|BT|DT)[\s\S]*?end/gi, '') // Graph blocks
+				// Remove JSON structures - catch all variations
+				.replace(/\{[\s\S]*?"visual_aid"[\s\S]*?\}/gi, '')
+				.replace(/\{[\s\S]*?"visual[\s\S]*?aid"[\s\S]*?\}/gi, '') // Catch split variations
+				.replace(/\{[\s\S]*?"drawing_[\s\S]*?\}/gi, '')
+				.replace(/\{[\s\S]*?"type"[\s\S]*?\}/gi, '')
+				.replace(/\{[\s\S]*?"style"[\s\S]*?\}/gi, '')
+				.replace(/\{[\s\S]*?"mermaid"[\s\S]*?\}/gi, '') // Remove JSON with mermaid
+				.replace(/\{[\s\S]*?\}/g, '') // Remove ANY remaining JSON objects
+				// Remove arrays with metadata
+				.replace(/\[[\s\S]*?"visual_aid"[\s\S]*?\]/gi, '')
+				.replace(/\[[\s\S]*?"mermaid"[\s\S]*?\]/gi, '') // Remove arrays with mermaid
+				.replace(/\[[\s\S]*?\]/g, '') // Remove ANY remaining arrays
+				// Remove FORBIDDEN WORDS completely - case insensitive, all variations
+				.replace(/\bvisual_aid\b/gi, '')
+				.replace(/\bvisual\s+aid\b/gi, '')
+				.replace(/\bvisualaid\b/gi, '')
+				.replace(/\bcontent\s+aid\b/gi, '') // Remove "content aid"
+				.replace(/\bcontent_aid\b/gi, '') // Remove "content_aid"
+				.replace(/\bcontentaid\b/gi, '') // Remove "contentaid"
+				.replace(/\bmermaid\b/gi, '') // Remove mermaid completely
+				.replace(/\bmer\s*maid\b/gi, '') // Catch split variations
 				.replace(/drawing_instructions/gi, '')
 				.replace(/drawing_elements/gi, '')
-				.replace(/`{3,}/g, '') // Remove 3+ consecutive backticks
-				.replace(/`{1,2}/g, '') // Remove 1-2 backticks
+				.replace(/whiteboard_drawing/gi, '')
+				// Remove Mermaid syntax patterns - be EXTREMELY aggressive
+				.replace(/graph\s+(TD|LR|TB|RL|BT|DT)/gi, '')
+				.replace(/\bgraph\b/gi, '') // Remove standalone "graph" word
+				.replace(/subgraph\s+\w+/gi, '') // Remove "subgraph LIFO", "subgraph FIFO", etc.
+				.replace(/subgraph/gi, '')
+				.replace(/\bend\b/gi, '') // Remove "end" keyword (Mermaid subgraph end)
+				.replace(/-->/g, ' to ')
+				.replace(/==>/g, ' to ')
+				.replace(/---/g, ' ')
+				.replace(/===/g, ' ')
+				.replace(/--/g, ' ')
+				// Remove Mermaid node syntax patterns BEFORE removing brackets
+				.replace(/\w+\[[^\]]+\]/g, '') // A[Stack], B[text], etc.
+				.replace(/\w+\(\([^)]+\)\)/g, '') // B(( )), C((text)), etc.
+				.replace(/\w+\{[^}]+\}/g, '') // D{text}, etc.
+				.replace(/\w+\([^)]+\)/g, '') // E(text), etc.
+				// Remove Mermaid style definitions
+				.replace(/style\s+\w+\s+fill[^\n]+/gi, '') // "style A fill:#fff,stroke:#000..."
+				.replace(/style\s+\w+\s+stroke[^\n]+/gi, '') // "style A stroke:#000..."
+				.replace(/fill:\s*#[0-9a-fA-F]+/gi, '') // fill:#fff, fill:#000
+				.replace(/stroke:\s*#[0-9a-fA-F]+/gi, '') // stroke:#000
+				.replace(/stroke-width:\s*\d+px/gi, '') // stroke-width:2px
+				.replace(/rx:\s*\d+px/gi, '') // rx:5px
+				.replace(/ry:\s*\d+px/gi, '') // ry:5px
+				.replace(/rx:\s*\d+/gi, '') // rx:5
+				.replace(/ry:\s*\d+/gi, '') // ry:5
+				// Remove common Mermaid subgraph names
+				.replace(/\bLIFO\b/gi, '')
+				.replace(/\bFIFO\b/gi, '')
+				.replace(/\bSTACK\b/gi, '')
+				.replace(/\bQUEUE\b/gi, '')
+				// Now remove brackets/parentheses
+				.replace(/\[/g, '')
+				.replace(/\]/g, '')
+				.replace(/\(/g, '')
+				.replace(/\)/g, '')
+				.replace(/\{/g, '')
+				.replace(/\}/g, '')
+				// Remove backticks completely
+				.replace(/`+/g, '')
+				// Remove metadata patterns with colons - be VERY aggressive
+				.replace(/\btype\s*:\s*[^\n\r,;.]+/gi, '') // Remove "type : anything" (until newline, comma, semicolon, period)
+				.replace(/\bType\s*:\s*[^\n\r,;.]+/gi, '') // Case variations
+				.replace(/\bTYPE\s*:\s*[^\n\r,;.]+/gi, '')
+				.replace(/\btype\s*:\s*white[^\n\r,;.]+/gi, '') // "type : white..." patterns
+				.replace(/\btype\s*:\s*black[^\n\r,;.]+/gi, '') // "type : black..." patterns
+				.replace(/\btype\s*:\s*box/gi, '') // "type : box"
+				.replace(/\btype\s*:\s*marker/gi, '') // "type : marker"
+				.replace(/\btype\s*:\s*whiteboard/gi, '') // "type : whiteboard"
+				.replace(/\b(Style|Category|style|category)\s*:\s*[^\n\r,;.]+/gi, '')
+				.replace(/\bcontent\s+aid\s*:\s*[^\n\r,;.]+/gi, '') // "content aid :" patterns
+				.replace(/\bcontent_aid\s*:\s*[^\n\r,;.]+/gi, '')
+				.replace(/\w+_\w+\s*:\s*[^\n\r,;.]+/g, '') // key_key:value patterns (extended)
+				// Remove specific problematic patterns
+				.replace(/\btype\s*:\s*white\s+black\s+black\s+marker/gi, '') // "type : white black black marker"
+				.replace(/\btype\s*:\s*white\s+black\s+marker/gi, '') // "type : white black marker"
+				.replace(/\btype\s*:\s*whiteboard\s+black\s+marker/gi, '') // "type : whiteboard black marker"
+				// Remove phrases that might contain these terms
+				.replace(/using\s+mermaid/gi, '')
+				.replace(/mermaid\s+diagram/gi, '')
+				.replace(/mermaid\s+syntax/gi, '')
+				.replace(/mermaid\s+code/gi, '')
+				.replace(/create\s+a\s+visual\s+aid/gi, '')
+				.replace(/visual\s+aid\s+showing/gi, '')
+				.replace(/visual\s+aid\s+for/gi, '')
+				// Normalize whitespace
+				.replace(/\s+/g, ' ')
 				.trim();
+			
+			// Final validation - if prompt still contains forbidden terms, log warning and remove them
+			const forbiddenTerms = ['visual_aid', 'visual aid', 'mermaid', 'visualaid', 'content aid', 'content_aid'];
+			for (const term of forbiddenTerms) {
+				if (new RegExp(`\\b${term.replace(/\s+/g, '\\s+')}\\b`, 'gi').test(prompt_for_image)) {
+					console.warn(`[Structured Plan] ⚠️  Found forbidden term "${term}" in frame ${frame.id} prompt after sanitization, removing...`);
+					prompt_for_image = prompt_for_image.replace(new RegExp(`\\b${term.replace(/\s+/g, '\\s+')}\\b`, 'gi'), '');
+				}
+			}
+			
+			// Check for remaining "type :" patterns
+			const typePattern = /\btype\s*:\s*[^\n\r,;.]+/gi;
+			if (typePattern.test(prompt_for_image)) {
+				console.warn(`[Structured Plan] ⚠️  Found "type :" pattern in frame ${frame.id} prompt after sanitization, removing...`);
+				prompt_for_image = prompt_for_image.replace(typePattern, '');
+			}
+			
+			// Check for "content aid :" patterns
+			const contentAidPattern = /\bcontent\s+aid\s*:\s*[^\n\r,;.]+/gi;
+			if (contentAidPattern.test(prompt_for_image)) {
+				console.warn(`[Structured Plan] ⚠️  Found "content aid :" pattern in frame ${frame.id} prompt after sanitization, removing...`);
+				prompt_for_image = prompt_for_image.replace(contentAidPattern, '');
+			}
+			
+			// Check for remaining Mermaid patterns (catch any we might have missed)
+			const mermaidPatterns = [
+				/\bgraph\s+(TD|LR|TB|RL|BT|DT)/gi,
+				/\bsubgraph\s+\w+/gi,
+				/\bstyle\s+\w+\s+fill/gi,
+				/\bfill:\s*#[0-9a-fA-F]+/gi,
+				/\bstroke:\s*#[0-9a-fA-F]+/gi,
+				/\bstroke-width:\s*\d+px/gi,
+				/\w+\[[^\]]+\]/g, // Node syntax A[text]
+				/\w+\(\([^)]+\)\)/g, // Node syntax B((text))
+				/\w+\{[^}]+\}/g, // Node syntax C{text}
+			];
+			
+			for (const pattern of mermaidPatterns) {
+				if (pattern.test(prompt_for_image)) {
+					console.warn(`[Structured Plan] ⚠️  Found Mermaid pattern in frame ${frame.id} prompt after sanitization, removing...`);
+					prompt_for_image = prompt_for_image.replace(pattern, '');
+				}
+			}
 			
 			// Validate prompt quality
 			const promptLength = prompt_for_image.length;
@@ -129,7 +299,7 @@ const validatePlan = (plan: StructuredVideoPlan): StructuredVideoPlan => {
 			}
 			
 			// Check for metadata patterns that shouldn't be in the prompt
-			const hasMetadata = /Type\s*:|Style\s*:|Category\s*:|whiteboard_drawing|visual_aid|drawing_instructions|drawing_elements/i.test(prompt_for_image);
+			const hasMetadata = /Type\s*:|type\s*:|Style\s*:|Category\s*:|content\s+aid\s*:|content_aid\s*:|whiteboard_drawing|visual_aid|visual\s+aid|mermaid|drawing_instructions|drawing_elements/i.test(prompt_for_image);
 			if (hasMetadata) {
 				console.warn(`[Structured Plan] ⚠️  Frame ${frame.id} prompt may contain metadata patterns, attempting to clean...`);
 				prompt_for_image = prompt_for_image

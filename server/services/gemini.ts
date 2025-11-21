@@ -424,10 +424,120 @@ function tryExtractBase64(obj: any): string | undefined {
  * - robustly extracts base64 and saves PNG to public/assets/gemini-images
  * - returns a public URL to the saved image
  */
+/**
+ * Sanitize prompt to reduce RAI filtering risk
+ */
+function sanitizePromptForImagen(prompt: string): string {
+  // ULTRA-AGGRESSIVE final sanitization - this is the last line of defense before sending to Imagen
+  return prompt
+    // Remove ALL code blocks first - be EXTREMELY aggressive
+    .replace(/```mermaid[\s\S]*?```/gi, '') // Remove Mermaid code blocks FIRST (most common)
+    .replace(/```[\s\S]*?```/gi, '') // Remove ALL other code blocks
+    .replace(/`[^`]*`/g, '') // Remove inline code
+    .replace(/`+/g, '') // Remove any remaining backticks
+    // Remove Mermaid code blocks without backticks (multiline patterns)
+    .replace(/mermaid\s*\n[\s\S]*?graph[\s\S]*?end/gi, '') // Mermaid without backticks
+    .replace(/graph\s+(TD|LR|TB|RL|BT|DT)[\s\S]*?end/gi, '') // Graph blocks
+    // Remove JSON structures
+    .replace(/\{[\s\S]*?"visual_aid"[\s\S]*?\}/gi, '')
+    .replace(/\{[\s\S]*?"mermaid"[\s\S]*?\}/gi, '')
+    .replace(/\{[\s\S]*?\}/g, '')
+    // Remove arrays
+    .replace(/\[[\s\S]*?"visual_aid"[\s\S]*?\]/gi, '')
+    .replace(/\[[\s\S]*?"mermaid"[\s\S]*?\]/gi, '')
+    .replace(/\[[\s\S]*?\]/g, '')
+    // Remove FORBIDDEN WORDS completely - word boundaries to avoid partial matches
+    .replace(/\bvisual_aid\b/gi, '')
+    .replace(/\bvisual\s+aid\b/gi, '')
+    .replace(/\bvisualaid\b/gi, '')
+    .replace(/\bcontent\s+aid\b/gi, '') // Remove "content aid"
+    .replace(/\bcontent_aid\b/gi, '') // Remove "content_aid"
+    .replace(/\bcontentaid\b/gi, '') // Remove "contentaid"
+    .replace(/\bmermaid\b/gi, '') // Remove mermaid completely
+    .replace(/\bmer\s*maid\b/gi, '') // Catch split variations
+    .replace(/\bdiagram\b/gi, '') // Remove "diagram" as label
+    .replace(/\bchart\b/gi, '') // Remove "chart" as label
+    .replace(/\bfigure\b/gi, '') // Remove "figure" as label
+    // Remove Mermaid syntax - be EXTREMELY aggressive
+    .replace(/graph\s+(TD|LR|TB|RL|BT|DT)/gi, '')
+    .replace(/\bgraph\b/gi, '') // Remove standalone "graph"
+    .replace(/subgraph\s+\w+/gi, '') // Remove "subgraph LIFO", "subgraph FIFO", etc.
+    .replace(/subgraph/gi, '')
+    .replace(/\bend\b/gi, '') // Remove "end" keyword (Mermaid subgraph end)
+    .replace(/-->/g, ' to ')
+    .replace(/==>/g, ' to ')
+    .replace(/---/g, ' ')
+    .replace(/===/g, ' ')
+    .replace(/--/g, ' ')
+    // Remove Mermaid node syntax patterns BEFORE removing brackets
+    .replace(/\w+\[[^\]]+\]/g, '') // A[Stack], B[text], etc.
+    .replace(/\w+\(\([^)]+\)\)/g, '') // B(( )), C((text)), etc.
+    .replace(/\w+\{[^}]+\}/g, '') // D{text}, etc.
+    .replace(/\w+\([^)]+\)/g, '') // E(text), etc.
+    // Remove Mermaid style definitions
+    .replace(/style\s+\w+\s+fill[^\n]+/gi, '') // "style A fill:#fff,stroke:#000..."
+    .replace(/style\s+\w+\s+stroke[^\n]+/gi, '') // "style A stroke:#000..."
+    .replace(/fill:\s*#[0-9a-fA-F]+/gi, '') // fill:#fff, fill:#000
+    .replace(/stroke:\s*#[0-9a-fA-F]+/gi, '') // stroke:#000
+    .replace(/stroke-width:\s*\d+px/gi, '') // stroke-width:2px
+    .replace(/rx:\s*\d+px/gi, '') // rx:5px
+    .replace(/ry:\s*\d+px/gi, '') // ry:5px
+    .replace(/rx:\s*\d+/gi, '') // rx:5
+    .replace(/ry:\s*\d+/gi, '') // ry:5
+    // Remove common Mermaid subgraph names
+    .replace(/\bLIFO\b/gi, '')
+    .replace(/\bFIFO\b/gi, '')
+    .replace(/\bSTACK\b/gi, '')
+    .replace(/\bQUEUE\b/gi, '')
+    // Now remove brackets/parentheses
+    .replace(/\[/g, '')
+    .replace(/\]/g, '')
+    .replace(/\(/g, '')
+    .replace(/\)/g, '')
+    .replace(/\{/g, '')
+    .replace(/\}/g, '')
+    // Remove metadata patterns - be VERY aggressive with colon-separated patterns
+    .replace(/\btype\s*:\s*[^\n\r,;.]+/gi, '') // Remove "type : anything" (until newline, comma, semicolon, period)
+    .replace(/\bType\s*:\s*[^\n\r,;.]+/gi, '') // Case variations
+    .replace(/\bTYPE\s*:\s*[^\n\r,;.]+/gi, '')
+    .replace(/\btype\s*:\s*white[^\n\r,;.]+/gi, '') // "type : white..." patterns
+    .replace(/\btype\s*:\s*black[^\n\r,;.]+/gi, '') // "type : black..." patterns
+    .replace(/\btype\s*:\s*box/gi, '') // "type : box"
+    .replace(/\btype\s*:\s*marker/gi, '') // "type : marker"
+    .replace(/\btype\s*:\s*whiteboard/gi, '') // "type : whiteboard"
+    .replace(/\b(Style|Category|style|category)\s*:\s*[^\n\r,;.]+/gi, '')
+    .replace(/\bcontent\s+aid\s*:\s*[^\n\r,;.]+/gi, '') // "content aid :" patterns
+    .replace(/\bcontent_aid\s*:\s*[^\n\r,;.]+/gi, '')
+    .replace(/whiteboard_drawing/gi, '')
+    .replace(/drawing_instructions/gi, '')
+    .replace(/drawing_elements/gi, '')
+    // Remove specific problematic patterns
+    .replace(/\btype\s*:\s*white\s+black\s+black\s+marker/gi, '') // "type : white black black marker"
+    .replace(/\btype\s*:\s*white\s+black\s+marker/gi, '') // "type : white black marker"
+    .replace(/\btype\s*:\s*whiteboard\s+black\s+marker/gi, '') // "type : whiteboard black marker"
+    // Remove phrases containing forbidden terms
+    .replace(/using\s+mermaid/gi, '')
+    .replace(/mermaid\s+diagram/gi, '')
+    .replace(/mermaid\s+syntax/gi, '')
+    .replace(/mermaid\s+code/gi, '')
+    .replace(/create\s+a\s+visual\s+aid/gi, '')
+    .replace(/visual\s+aid\s+showing/gi, '')
+    .replace(/visual\s+aid\s+for/gi, '')
+    // Normalize whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export async function callGeminiImage(
   prompt: string,
   model: string = DEFAULT_IMAGE_MODEL
 ): Promise<string> {
+  // Sanitize prompt before sending to reduce RAI filtering risk
+  const sanitizedPrompt = sanitizePromptForImagen(prompt);
+  if (sanitizedPrompt !== prompt) {
+    console.log(`[Gemini Image] Sanitized prompt (removed ${prompt.length - sanitizedPrompt.length} chars of potentially problematic content)`);
+  }
+  
   // build model sequence: explicit param first, then configured fallbacks (unique)
   const fallbacks = Array.from(new Set([model, ...IMAGE_MODEL_FALLBACKS]));
 
@@ -496,7 +606,7 @@ export async function callGeminiImage(
       ? {
           instances: [
             {
-              prompt,
+              prompt: sanitizedPrompt, // Use sanitized prompt
             },
           ],
           parameters: {
@@ -509,7 +619,7 @@ export async function callGeminiImage(
           contents: [
             {
               role: "user",
-              parts: [{ text: prompt }],
+              parts: [{ text: sanitizedPrompt }], // Use sanitized prompt
             },
           ],
         };
@@ -531,7 +641,26 @@ export async function callGeminiImage(
         for (const prediction of predictions) {
           // Check for RAI filtering
           if (prediction?.raiFilteredReason) {
-            console.warn(`[Gemini Image] Content filtered: ${prediction.raiFilteredReason}`);
+            const filterReason = prediction.raiFilteredReason;
+            const filterCode = filterReason.match(/Support codes: (\d+)/)?.[1] || 'unknown';
+            console.warn(`[Gemini Image] Content filtered: ${filterReason}`);
+            console.warn(`[Gemini Image] Filter code: ${filterCode}`);
+            
+            // Log the prompt that triggered filtering (truncated for safety)
+            const promptPreview = typeof prediction?.prompt === 'string' 
+              ? prediction.prompt.substring(0, 200) 
+              : 'N/A';
+            console.warn(`[Gemini Image] Prompt preview (first 200 chars): ${promptPreview}`);
+            
+            // Common causes: sensitive topics, code/technical content, or prompt complexity
+            if (filterCode === '64151117') {
+              console.warn(`[Gemini Image] ⚠️  Filter code 64151117 - This may be due to:`);
+              console.warn(`   - Technical/code-related content in prompt`);
+              console.warn(`   - Complex or ambiguous prompt structure`);
+              console.warn(`   - Certain keywords triggering safety filters`);
+              console.warn(`   - Prompt length or complexity`);
+            }
+            
             continue; // Skip this prediction
           }
           

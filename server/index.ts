@@ -10,6 +10,8 @@ import generateVideoRoute from './routes/generateVideo';
 import colabRoutes from './routes/colab';
 import vectorizeRoutes from './routes/vectorize';
 import penSketchRoutes from './routes/penSketch';
+import libraryRoutes from './routes/library';
+import diagramsRoutes from './routes/diagrams';
 import { VideoWebSocketServer } from './websocket';
 
 
@@ -19,17 +21,23 @@ const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Increase body size limits for large file uploads
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/api/ai', aiRoutes);
 app.use('/api/colab', colabRoutes);
 app.use('/api/vectorize', vectorizeRoutes);
 app.use('/api/pen-sketch', penSketchRoutes);
+app.use('/api/library', libraryRoutes);
+app.use('/api/diagrams', diagramsRoutes);
 app.use('/output', express.static(path.join(process.cwd(), 'output')));
 const assetsDirectory = process.env.ASSETS_DIR
 	? path.resolve(process.cwd(), process.env.ASSETS_DIR)
 	: path.join(process.cwd(), 'public', 'assets');
 app.use('/assets', express.static(assetsDirectory));
+
+// Serve site-library directory for curated videos and images
+app.use('/site-library', express.static(path.join(process.cwd(), 'site-library')));
 
 // Serve pen-sketch uploads
 app.use('/assets/pen-sketch-uploads', express.static(path.join(process.cwd(), 'public', 'assets', 'pen-sketch-uploads')));

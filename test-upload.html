@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Upload</title>
+</head>
+<body>
+    <h1>Test Video Upload</h1>
+    <form id="uploadForm">
+        <input type="file" id="fileInput" accept="video/mp4" multiple>
+        <button type="submit">Upload</button>
+    </form>
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const files = document.getElementById('fileInput').files;
+            if (!files.length) {
+                alert('Please select files');
+                return;
+            }
+
+            const formData = new FormData();
+            for (let file of files) {
+                formData.append('videos', file);
+            }
+
+            try {
+                const response = await fetch('http://localhost:3000/api/library/videos/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                document.getElementById('result').innerHTML = `
+                    <h3>Response:</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <h3>Error:</h3>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
+

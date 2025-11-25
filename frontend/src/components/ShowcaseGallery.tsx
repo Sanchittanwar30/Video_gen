@@ -211,7 +211,7 @@ export default function ShowcaseGallery() {
 				</h2>
 				<p style={{
 					fontSize: '18px',
-					color: 'var(--text-secondary)',
+					color: 'hsl(var(--muted-foreground))',
 					maxWidth: '600px',
 					margin: '0 auto',
 				}}>
@@ -219,6 +219,9 @@ export default function ShowcaseGallery() {
 				</p>
 			</div>
 
+			{loading ? (
+				<SkeletonLoader />
+			) : (
 			<div 
 				className="showcase-gallery-grid"
 				style={{
@@ -254,9 +257,9 @@ export default function ShowcaseGallery() {
 						key={index}
 						className="showcase-card"
 						style={{
-							background: 'var(--bg-card)',
-							border: '1px solid var(--border-primary)',
-							borderRadius: 'var(--radius-lg)',
+						background: 'hsl(var(--card))',
+						border: '1px solid hsl(var(--border))',
+						borderRadius: 'var(--radius-lg)',
 							overflow: 'hidden',
 							transition: 'transform 0.3s ease, box-shadow 0.3s ease',
 							cursor: 'pointer',
@@ -510,6 +513,7 @@ export default function ShowcaseGallery() {
 					</div>
 				))}
 			</div>
+			)}
 
 			{/* Fullscreen Video Modal */}
 			{fullscreenVideo !== null && (
@@ -670,8 +674,8 @@ export default function ShowcaseGallery() {
 				].map((feature, idx) => (
 					<div key={idx} style={{
 						padding: '20px',
-						background: 'var(--bg-card)',
-						border: '1px solid var(--border-primary)',
+						background: 'hsl(var(--card))',
+						border: '1px solid hsl(var(--border))',
 						borderRadius: 'var(--radius-md)',
 					}}>
 						<div style={{ fontSize: '32px', marginBottom: '8px' }}>{feature.icon}</div>
@@ -679,13 +683,13 @@ export default function ShowcaseGallery() {
 							fontSize: '16px',
 							fontWeight: 'bold',
 							marginBottom: '4px',
-							color: 'var(--text-primary)',
+							color: 'hsl(var(--foreground))',
 						}}>
 							{feature.title}
 						</h4>
 						<p style={{
 							fontSize: '13px',
-							color: 'var(--text-secondary)',
+							color: 'hsl(var(--muted-foreground))',
 						}}>
 							{feature.desc}
 						</p>

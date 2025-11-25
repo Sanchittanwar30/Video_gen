@@ -223,6 +223,11 @@ export function GenerateVideoDemo() {
 			setState('success');
 			setShowConfetti(true);
 			
+			// Reset confetti after duration
+			setTimeout(() => {
+				setShowConfetti(false);
+			}, 4000);
+			
 			// Scroll to video
 			setTimeout(() => {
 				const videoPreview = document.querySelector('.generate-video-preview');

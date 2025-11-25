@@ -47,6 +47,15 @@ interface ImageTrack {
 		delay?: number;
 		from?: 'left' | 'right' | 'top' | 'bottom';
 	};
+	camera?: {
+		// Camera pan/zoom animations for large diagrams
+		keyframes?: Array<{
+			frame: number;
+			scale: number;
+			x: number; // Percentage (0-100)
+			y: number; // Percentage (0-100)
+		}>;
+	};
 	startFrame: number;
 	endFrame: number;
 }
@@ -287,6 +296,7 @@ function ImageTrackComponent({
 	input: Record<string, any>;
 }) {
 	const frame = useCurrentFrame();
+	const { fps } = useVideoConfig();
 	const animation = useAnimation(track.animation, track.startFrame, track.endFrame);
 
 	if (frame < track.startFrame || frame > track.endFrame) {
@@ -300,13 +310,15 @@ function ImageTrackComponent({
 		return null;
 	}
 
+	// SVG rendering - using static Img component (path animation will be added later)
+
 	const style = track.style || {};
 	const {
 		x,
 		y,
-		width,
-		height,
-		anchor = 'top-left',
+		width = 3840, // Default to large diagram size for architectural diagrams
+		height = 2160, // Default to large diagram size
+		anchor = 'center',
 		transform: userTransform,
 		...restStyle
 	} = style;
@@ -315,25 +327,122 @@ function ImageTrackComponent({
 		objectFit?: 'contain' | 'cover' | 'fill';
 	} & Record<string, any>;
 
+	// Calculate camera pan/zoom if keyframes are provided
+	let cameraTransform = '';
+	if (track.camera?.keyframes && track.camera.keyframes.length > 0) {
+		const keyframes = track.camera.keyframes;
+		const relativeFrame = frame - track.startFrame;
+		
+		// Find current keyframe segment
+		let currentScale = 1;
+		let currentX = 50; // Center percentage
+		let currentY = 50; // Center percentage
+
+		if (keyframes.length === 1) {
+			currentScale = keyframes[0].scale;
+			currentX = keyframes[0].x;
+			currentY = keyframes[0].y;
+		} else {
+			// Interpolate between keyframes
+			const sortedKfs = [...keyframes].sort((a, b) => a.frame - b.frame);
+			let prevKf = sortedKfs[0];
+			let nextKf = sortedKfs[sortedKfs.length - 1];
+
+			for (let i = 0; i < sortedKfs.length - 1; i++) {
+				if (relativeFrame >= sortedKfs[i].frame && relativeFrame <= sortedKfs[i + 1].frame) {
+					prevKf = sortedKfs[i];
+					nextKf = sortedKfs[i + 1];
+					break;
+				}
+			}
+
+			if (prevKf.frame === nextKf.frame) {
+				currentScale = prevKf.scale;
+				currentX = prevKf.x;
+				currentY = prevKf.y;
+			} else {
+				// Interpolate directly with easing option (Remotion handles easing internally)
+				currentScale = interpolate(
+					relativeFrame,
+					[prevKf.frame, nextKf.frame],
+					[prevKf.scale, nextKf.scale],
+					{
+						easing: Easing.easeInOut,
+						extrapolateLeft: 'clamp',
+						extrapolateRight: 'clamp',
+					}
+				);
+				currentX = interpolate(
+					relativeFrame,
+					[prevKf.frame, nextKf.frame],
+					[prevKf.x, nextKf.x],
+					{
+						easing: Easing.easeInOut,
+						extrapolateLeft: 'clamp',
+						extrapolateRight: 'clamp',
+					}
+				);
+				currentY = interpolate(
+					relativeFrame,
+					[prevKf.frame, nextKf.frame],
+					[prevKf.y, nextKf.y],
+					{
+						easing: Easing.easeInOut,
+						extrapolateLeft: 'clamp',
+						extrapolateRight: 'clamp',
+					}
+				);
+			}
+		}
+
+		// Calculate transform for pan/zoom
+		// Center the focus point (currentX%, currentY%) at screen center (960, 540)
+		const focusX = (currentX / 100) * width;
+		const focusY = (currentY / 100) * height;
+		const translateX = 960 - focusX * currentScale;
+		const translateY = 540 - focusY * currentScale;
+
+		cameraTransform = `translate(${translateX}px, ${translateY}px) scale(${currentScale})`;
+	}
+
 	const baseTransform = anchor === 'center' ? 'translate(-50%, -50%) ' : '';
 	const animatedTransform = `translateX(${animation.translateX}px) translateY(${animation.translateY}px)`;
-	const combinedTransform = `${baseTransform}${typeof userTransform === 'string' ? `${userTransform} ` : ''}${animatedTransform}`;
+	const userTransformStr = typeof userTransform === 'string' ? `${userTransform} ` : '';
+	const combinedTransform = `${baseTransform}${userTransformStr}${animatedTransform}`;
 
 	return (
-		<Img
-			src={src}
+		<div
 			style={{
 				position: 'absolute',
 				left: x ?? (anchor === 'center' ? '50%' : 0),
 				top: y ?? (anchor === 'center' ? '50%' : 0),
-				width,
-				height,
-				objectFit: objectFit || 'contain',
+				width: '100%',
+				height: '100%',
 				transform: combinedTransform,
 				opacity: animation.opacity,
-				...otherStyle,
+				overflow: 'hidden',
 			}}
-		/>
+		>
+			<div
+				style={{
+					transform: cameraTransform || 'none',
+					transformOrigin: 'top left',
+					width: width,
+					height: height,
+				}}
+			>
+				{/* Always use static Img component for now - path animation will be re-enabled later */}
+				<Img
+					src={src}
+					style={{
+						width: width,
+						height: height,
+						objectFit: objectFit || 'contain',
+						...otherStyle,
+					}}
+				/>
+			</div>
+		</div>
 	);
 }
 

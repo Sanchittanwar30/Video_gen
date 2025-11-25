@@ -1,605 +1,803 @@
-# AI Video Generation System
+# 🎬 Video Generation Studio
 
-An AI-powered video generation system that creates educational whiteboard-style videos from a simple topic and description. Built with Google Gemini for content generation, Deepgram for text-to-speech, and Remotion for video rendering with pen-sketch animations.
+**Transform your ideas into professional videos with AI-powered visuals and animations**
 
-## 🏗️ System Architecture
+An advanced AI-powered platform that generates educational videos with automated storyboarding, image generation, voiceovers, whiteboard animations, and subtitle generation.
+
+---
+
+## 📋 Table of Contents
+
+- [Features](#-features)
+- [Demo](#-demo)
+- [Tech Stack](#-tech-stack)
+- [Architecture](#-architecture)
+- [Getting Started](#-getting-started)
+- [Configuration](#-configuration)
+- [Usage Guide](#-usage-guide)
+- [API Documentation](#-api-documentation)
+- [Components](#-components)
+- [WebSocket Progress](#-websocket-progress)
+- [Pen Sketch Animation](#-pen-sketch-animation)
+- [Troubleshooting](#-troubleshooting)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+---
+
+## ✨ Features
+
+### 🤖 AI Storyboard Generator
+- **Automated Video Planning**: Generate complete video storyboards from simple topic descriptions
+- **AI Image Generation**: Create custom visuals using Google Gemini AI
+- **Voice Synthesis**: Generate natural-sounding voiceovers with Deepgram TTS
+- **Subtitle Generation**: Automatic YouTube-style subtitle overlays
+- **Real-time Progress**: WebSocket-powered live updates during generation
+- **Voice Input**: Speech-to-text for hands-free description input
+
+### 🎨 Showcase Gallery
+- **Video Previews**: 2x2 responsive grid with play/pause controls
+- **Fullscreen Mode**: Large video player with native controls
+- **Skeleton Loading**: Smooth loading states with shimmer effects
+- **Auto-pause**: Automatically pauses other videos when one plays
+- **Download Support**: Direct download links for all videos
+
+### 🖊️ Pen Sketch Animation (Beta)
+- **Whiteboard Style**: Convert images to hand-drawn animations
+- **Stroke-by-Stroke**: Progressive drawing effect with animated cursor
+- **Two-Pass System**: Outlines first, then color fills
+- **Top-to-Bottom**: Natural drawing progression
+- **Noise Filtering**: Advanced edge detection with denoising
+
+### 🎉 User Experience
+- **Confetti Celebration**: Rewarding animation on video completion
+- **Smooth Animations**: Fade-in, slide, scale effects throughout
+- **Mobile Responsive**: Optimized for all screen sizes
+- **Dark Mode Ready**: Modern, professional UI design
+- **Real-time Feedback**: Progress indicators and status updates
+
+---
+
+## 🎥 Demo
+
+### AI Storyboard Generation
+```
+Topic: "Quantum Entanglement Explained Simply"
+Description: "Introduce the concept, walk through an example with two particles, 
+             and conclude with why observation collapses the state."
+
+Output: Professional educational video with:
+├── AI-generated visuals
+├── Natural voiceovers
+├── Animated subtitles
+└── Background music
+```
+
+### Showcase Gallery
+- 4 example videos in a responsive grid
+- Click-to-play with controls
+- Fullscreen viewing mode
+- Download functionality
+
+---
+
+## 🛠️ Tech Stack
+
+### Frontend
+- **React 18** with TypeScript
+- **Vite** for fast development
+- **Axios** for API requests
+- **WebSocket** for real-time updates
+- **CSS Variables** for theming
+
+### Backend
+- **Node.js** with Express
+- **TypeScript** for type safety
+- **WebSocket Server** for progress updates
+- **Remotion** for video rendering
+- **FFmpeg** for video processing
+
+### AI & Media Services
+- **Google Gemini AI** - Text & image generation
+- **Deepgram** - Text-to-speech synthesis
+- **OpenCV (Python)** - Image processing for pen sketch
+- **Potrace** - Vector tracing for animations
+
+### Video Processing
+- **Remotion** - React-based video rendering
+- **FFmpeg** - Video encoding and manipulation
+- **CairoSVG** - SVG to image conversion (optional)
+
+---
+
+## 🏗️ Architecture
 
 ```
-User Input (Topic + Description)
-    ↓
-Frontend (React/Vite) → Backend API (Express)
-    ↓
-AI Pipeline:
-    ├─ Gemini Text API (Plan Generation)
-    ├─ Gemini Image API (Diagram Generation)
-    ├─ Deepgram TTS (Voiceover)
-    ├─ Image Vectorization (PNG → SVG)
-    └─ Remotion (Video Rendering)
-    ↓
-Final MP4 Video
-```
-
-- **AI-Powered**: Uses Google Gemini for content and image generation
-- **Text-to-Speech**: Deepgram TTS with female upbeat voice
-- **Pen-Sketch Animation**: SVG path animation for whiteboard diagrams
-- **YouTube-Style Subtitles**: Word-by-word appearance with two-line rolling
-- **Real-Time Updates**: WebSocket for progress tracking
-- **Rendering**: Remotion-based video composition
-
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system documentation.
-
-## Features
-
-- **AI Content Generation**: Automatically generates video plans from topic
-- **Whiteboard Diagrams**: AI-generated educational diagrams optimized for animation
-- **Pen-Sketch Animation**: SVG paths animated stroke-by-stroke
-- **Voiceover**: AI-generated voiceover with upbeat female voice
-- **Subtitles**: YouTube-style subtitles with word-by-word appearance
-- **Image Vectorization**: Converts PNG diagrams to SVG for smooth animation
-- **Real-Time Progress**: WebSocket updates during generation
-- **Simple API**: Just provide topic and description, get a complete video
-
-## Project Structure
-
-```
-.
-├── frontend/                        # React frontend application
+video-generation-studio/
+├── frontend/                 # React frontend (Vite)
 │   ├── src/
-│   │   ├── components/
+│   │   ├── components/      # React components
 │   │   │   ├── GenerateVideoDemo.tsx
-│   │   │   └── VideoForm.tsx
-│   │   ├── api/
-│   │   │   └── generateVideoClient.ts
-│   │   └── services/
-│   │       └── api.ts
-│   └── vite.config.ts
+│   │   │   ├── ShowcaseGallery.tsx
+│   │   │   ├── VideoGenerationProgress.tsx
+│   │   │   ├── Confetti.tsx
+│   │   │   └── SkeletonLoader.tsx
+│   │   ├── api/            # API client functions
+│   │   ├── services/       # Service integrations
+│   │   └── App.tsx         # Main app component
+│   └── vite.config.ts      # Vite configuration
 │
-├── server/                          # Express backend API
-│   ├── index.ts                     # Main server
-│   ├── routes/
-│   │   ├── generateVideo.ts         # AI video generation endpoint
-│   │   └── video.ts                 # Alternative endpoint
-│   ├── services/
-│   │   ├── gemini-structured.ts     # Plan generation
-│   │   ├── gemini.ts                # Gemini API integration
-│   │   ├── deepgram.ts              # Text-to-speech
-│   │   ├── imageVectorizer.ts       # PNG → SVG conversion
-│   │   └── remotion-ai-renderer.ts # Video rendering
-│   └── websocket.ts                 # WebSocket server
+├── server/                  # Express backend
+│   ├── routes/             # API endpoints
+│   │   ├── generateVideo.ts  # Main video generation
+│   │   ├── penSketch.ts      # Pen sketch animation
+│   │   ├── vectorize.ts      # Image vectorization
+│   │   └── colab.ts          # Colab integration
+│   ├── services/           # Business logic
+│   │   ├── gemini-structured.ts  # AI plan generation
+│   │   ├── gemini.ts             # Gemini API wrapper
+│   │   ├── deepgram.ts           # TTS synthesis
+│   │   └── remotion-ai-renderer.ts  # Video rendering
+│   ├── websocket.ts        # WebSocket server
+│   └── index.ts            # Server entry point
 │
-├── remotion/                        # Remotion video components
-│   └── src/
-│       ├── VideoFromAI.tsx          # Main composition
-│       ├── WhiteboardAnimatorPrecise.tsx # SVG animation
-│       └── SubtitleOverlay.tsx      # Subtitles
+├── remotion/                # Remotion video templates
+│   ├── src/
+│   │   ├── Root.tsx        # Remotion root
+│   │   ├── AiStoryboard.tsx  # Main video template
+│   │   └── SubtitleOverlay.tsx  # Subtitle component
+│   └── remotion.config.ts  # Remotion configuration
 │
-├── public/
+├── scripts/                 # Utility scripts
+│   ├── sketch_animate_whiteboard.py  # Pen sketch animation
+│   └── auto-generate-showcase.js     # Showcase GIF generator
+│
+├── output/                  # Generated videos
+├── public/                  # Static assets
 │   └── assets/
-│       ├── gemini-images/           # Generated images
-│       ├── vectorized/               # SVG files
-│       └── voiceovers/               # Audio files
+│       ├── showcase/       # Showcase media files
+│       └── showcase-videos/  # Showcase MP4s
 │
-├── output/                          # Final video output
-│   └── ai-storyboard-*.mp4
-│
-├── package.json
-├── tsconfig.json
-└── remotion.config.ts
+└── docs/                    # Documentation
+    ├── WEBSOCKET-PROGRESS.md
+    ├── SHOWCASE-GUIDE.md
+    └── README-PEN-SKETCH-SETUP.md
 ```
 
-## 🚀 Quick Start
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- Node.js 20+
-- npm or yarn
-- Google Cloud service account (for Gemini API)
-- Deepgram API key (for TTS)
+- **Node.js** >= 18.x
+- **npm** or **yarn**
+- **Python** 3.9+ (for pen sketch animation)
+- **FFmpeg** installed globally
+- **API Keys**:
+  - Google Gemini API key
+  - Deepgram API key
 
 ### Installation
 
-1. Install dependencies:
+1. **Clone the repository**
+```bash
+git clone https://github.com/yourusername/video-generation-studio.git
+cd video-generation-studio
+```
+
+2. **Install Node dependencies**
 ```bash
 npm install
 ```
 
-2. Set up environment variables:
+3. **Install Python dependencies** (for pen sketch)
 ```bash
-cp env.example .env
-# Edit .env with your configuration (Redis, Supabase, Gemini API key)
+pip install -r requirements-pen-sketch.txt
+# or use the setup script
+./scripts/setup-pen-sketch.sh  # Linux/Mac
+./scripts/setup-pen-sketch.bat  # Windows
 ```
 
-   See [ENV_SETUP.md](./ENV_SETUP.md) for detailed environment variable configuration guide.
-
-3. Start Redis:
+4. **Install Remotion dependencies**
 ```bash
-# macOS
-brew install redis
-brew services start redis
-
-# Linux
-sudo apt-get install redis-server
-sudo systemctl start redis
-
-# Docker
-docker run -d -p 6379:6379 redis:7-alpine
+cd remotion
+npm install
+cd ..
 ```
 
-4. Start the system:
+5. **Install frontend dependencies**
 ```bash
-# Terminal 1: Start API server
-npm run dev:api
-
-# Terminal 2: Start worker
-npm run dev:worker
-
-# Terminal 3: Start frontend (optional)
-npm run dev:frontend
+cd frontend
+npm install
+cd ..
 ```
 
-5. Test the API:
+6. **Set up environment variables**
 ```bash
-curl http://localhost:3000/health
+cp .env.example .env
 ```
 
-### Docker Deployment
+Edit `.env` with your API keys:
+```env
+# AI Services
+GEMINI_API_KEY=your_gemini_api_key_here
+DEEPGRAM_API_KEY=your_deepgram_api_key_here
 
-```bash
-docker-compose up -d
+# Server Configuration
+PORT=3000
+WEBSOCKET_PORT=3001
+
+# Paths
+ASSETS_DIR=public/assets
+OUTPUT_DIR=output
+
+# Optional
+DEFAULT_BACKGROUND_MUSIC=/assets/music/default-background.mp3
 ```
 
-## Usage
+7. **Start the development servers**
 
-### Generate a Video via API
+**Terminal 1: Backend**
+```bash
+npm run dev
+```
 
+**Terminal 2: Frontend**
+```bash
+cd frontend
+npm run dev
+```
+
+**Access the app**: `http://localhost:5173`
+
+---
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `GEMINI_API_KEY` | Google Gemini API key | - | ✅ Yes |
+| `DEEPGRAM_API_KEY` | Deepgram TTS API key | - | ✅ Yes |
+| `PORT` | Backend server port | 3000 | No |
+| `WEBSOCKET_PORT` | WebSocket server port | 3001 | No |
+| `ASSETS_DIR` | Static assets directory | public/assets | No |
+| `OUTPUT_DIR` | Video output directory | output | No |
+| `DEFAULT_BACKGROUND_MUSIC` | Background music file | - | No |
+| `FIXED_TEST_IMAGES` | Test images (dev only) | - | No |
+
+### Vite Proxy Configuration
+
+The frontend proxies API requests to the backend:
+
+```typescript
+// frontend/vite.config.ts
+proxy: {
+  '/api': { target: 'http://localhost:3000' },
+  '/output': { target: 'http://localhost:3000' },
+  '/assets': { target: 'http://localhost:3000' },
+  '/ws': { target: 'ws://localhost:3001', ws: true }
+}
+```
+
+---
+
+## 📖 Usage Guide
+
+### 1. Generate an AI Storyboard Video
+
+#### Via UI:
+1. Navigate to the AI Storyboard Generator section
+2. Enter a **Topic** (e.g., "Photosynthesis Explained")
+3. Add a **Description** (or use voice input 🎤)
+4. Click **"Generate Storyboard"**
+5. Watch real-time progress updates
+6. 🎉 Confetti celebration when complete!
+7. Video auto-plays and can be downloaded
+
+#### Via API:
 ```bash
 curl -X POST http://localhost:3000/api/generate-video \
   -H "Content-Type: application/json" \
   -d '{
-    "topic": "Machine Learning Basics",
-    "description": "Explain supervised and unsupervised learning",
-    "animateDiagrams": true,
-    "durationSeconds": 60
+    "topic": "Photosynthesis Explained",
+    "description": "Start with sunlight, show energy conversion, and explain oxygen production."
   }'
 ```
 
-### Generate a Video via Frontend
-
-1. Start the frontend: `npm run dev:frontend`
-2. Open http://localhost:5173
-3. Fill in the form with topic and description
-4. Click "Generate Lesson Video"
-5. Watch progress in real-time via WebSocket
-6. Preview the generated video when complete
-
-## AI Storyboard Pipeline
-
-The `/api/generate-video` endpoint orchestrates a complete AI-powered video generation workflow from topic to final video.
-
-### Complete Workflow
-
-```
-User Input (Topic + Description)
-    ↓
-1. Structured Plan Generation (Gemini Text API)
-    ├─ server/services/gemini-structured.ts
-    └─ Generates: frames[], title, durations
-    ↓
-2. For Each Frame:
-    ├─ Voiceover Script Generation (Gemini Text API)
-    │  └─ server/routes/generateVideo.ts (generateVoiceoverScript)
-    │
-    ├─ Image Generation (Gemini Image API)
-    │  ├─ server/services/gemini.ts (callGeminiImage)
-    │  ├─ Enhanced prompts for pen-sketch animation
-    │  └─ Output: PNG images → /public/assets/gemini-images/
-    │
-    ├─ Image Vectorization (Optional, if animateDiagrams=true)
-    │  ├─ server/services/imageVectorizer.ts
-    │  └─ Converts PNG → SVG with path extraction
-    │
-    └─ Voiceover Audio Generation (Deepgram TTS)
-       ├─ server/services/deepgram.ts (synthesizeSpeech)
-       └─ Output: MP3 audio files
-    ↓
-3. Video Plan Assembly
-    └─ Combines all frames with assets, scripts, audio
-    ↓
-4. Remotion Rendering
-    ├─ remotion/src/VideoFromAI.tsx (Main composition)
-    ├─ remotion/src/WhiteboardAnimatorPrecise.tsx (SVG animation)
-    ├─ remotion/src/SubtitleOverlay.tsx (YouTube-style subtitles)
-    └─ server/services/remotion-ai-renderer.ts
-    ↓
-5. Final Video Output
-    └─ MP4 file → /output/ai-storyboard-*.mp4
-```
-
-### Detailed Pipeline Steps
-
-#### Step 1: Structured Plan Generation
-- **File**: `server/services/gemini-structured.ts`
-- **Function**: `generateStructuredJSON()`
-- **Input**: Topic, description
-- **Output**: JSON plan with frames (whiteboard_diagram types)
-- **Process**: 
-  - Calls Gemini Text API with structured prompt template
-  - Validates and returns video plan with 1-5 frames
-  - Each frame includes: `id`, `type`, `prompt_for_image`, `heading`, `duration`
-
-#### Step 2: Frame Processing (Per Frame)
-
-**2a. Voiceover Script Generation**
-- **File**: `server/routes/generateVideo.ts`
-- **Function**: `generateVoiceoverScript()`
-- **Input**: Frame context, topic, image description
-- **Output**: 2-3 sentence educational script (10-15 seconds)
-- **Process**: Generates script that references visual elements in the diagram
-
-**2b. Image Generation**
-- **File**: `server/services/gemini.ts`
-- **Function**: `callGeminiImage()`
-- **Input**: Enhanced prompt (sanitized, with animation-friendly instructions)
-- **Output**: PNG image saved to `/public/assets/gemini-images/`
-- **Key Features**:
-  - Sanitization removes "visual_aid", Mermaid syntax, metadata
-  - Prompts optimized for pen-sketch animation (bold strokes, distinct paths)
-  - Fallback to imagen-3.0 if imagen-4.0 fails (RAI filtering)
-  - Retry logic with multiple model attempts
-
-**2c. Image Vectorization** (if `animateDiagrams=true`)
-- **File**: `server/services/imageVectorizer.ts`
-- **Function**: `vectorizeImageFromUrl()`
-- **Input**: PNG image URL
-- **Output**: SVG file with extracted paths
-- **Process**:
-  - Downloads PNG image
-  - Converts to SVG using vectorization service
-  - Extracts path elements for animation
-  - Saves to `/public/assets/vectorized-*.svg`
-
-**2d. Voiceover Audio Generation**
-- **File**: `server/services/deepgram.ts`
-- **Function**: `synthesizeSpeech()`
-- **Input**: Voiceover script text
-- **Output**: MP3 audio buffer
-- **Features**:
-  - Female voice (aura-hera-en) for upbeat educational content
-  - SSML prosody tags for pitch adjustment (upbeat tone)
-  - Fallback models if primary fails
-  - Saves to `/public/assets/voiceovers/`
-
-#### Step 3: Video Rendering
-- **File**: `server/services/remotion-ai-renderer.ts`
-- **Function**: `renderStoryboardVideo()`
-- **Input**: Video plan with all assets
-- **Output**: MP4 video file
-- **Components Used**:
-  - `remotion/src/VideoFromAI.tsx` - Main composition orchestrator
-  - `remotion/src/WhiteboardAnimatorPrecise.tsx` - SVG path animation
-  - `remotion/src/SubtitleOverlay.tsx` - YouTube-style subtitles
-- **Process**:
-  - Creates Remotion sequences for each frame
-  - Animates SVG paths stroke-by-stroke (if vectorized)
-  - Syncs subtitles with voiceover audio
-  - Renders final MP4 using Remotion renderer
-
-### Important Files
-
-#### Backend API & Routes
-- **`server/routes/generateVideo.ts`** - Main API endpoint for `/api/generate-video`
-  - Handles request validation
-  - Orchestrates entire pipeline
-  - Manages frame processing loop
-  - Generates voiceover scripts
-  - Sanitizes image prompts
-
-#### AI Services
-- **`server/services/gemini-structured.ts`** - Structured plan generation
-  - `generateStructuredJSON()` - Creates video plan from topic
-  - `PROMPT_TEMPLATE` - Template for Gemini to generate frames
-  
-- **`server/services/gemini.ts`** - Gemini API integration
-  - `callGeminiText()` - Text generation (scripts, plans)
-  - `callGeminiImage()` - Image generation with retry logic
-  - Model fallback handling (imagen-4.0 → imagen-3.0)
-
-- **`server/services/deepgram.ts`** - Text-to-Speech
-  - `synthesizeSpeech()` - Generates voiceover audio
-  - Upbeat mode with SSML prosody tags
-  - Female voice selection for educational content
-
-#### Image Processing
-- **`server/services/imageVectorizer.ts`** - PNG to SVG conversion
-  - `vectorizeImageFromUrl()` - Downloads and vectorizes images
-  - Extracts SVG paths for animation
-  - Handles timeout and error cases
-
-#### Remotion Components
-- **`remotion/src/VideoFromAI.tsx`** - Main video composition
-  - Orchestrates all frames and sequences
-  - Manages transitions between frames
-  - Integrates voiceover, subtitles, and animations
-
-- **`remotion/src/WhiteboardAnimatorPrecise.tsx`** - SVG animation engine
-  - Parses SVG paths
-  - Animates paths stroke-by-stroke
-  - Handles path scheduling and timing
-  - Supports drawing window animations
-
-- **`remotion/src/SubtitleOverlay.tsx`** - Subtitle rendering
-  - YouTube-style subtitles (semi-transparent background)
-  - Word-by-word appearance
-  - Two-line rolling system
-  - Centered at bottom (35% from left)
-  - Syncs with voiceover audio
-
-#### Frontend
-- **`frontend/src/components/GenerateVideoDemo.tsx`** - Demo UI component
-  - Form for topic/description input
-  - Calls `/api/generate-video` endpoint
-  - Displays generated frames and preview
-
-- **`frontend/src/api/generateVideoClient.ts`** - API client
-  - Axios wrapper for video generation
-  - Handles WebSocket connections for progress
-
-### Configuration Files
-- **`server/index.ts`** - Express server setup
-- **`remotion.config.ts`** - Remotion configuration
-- **`vite.config.ts`** - Frontend Vite config with proxy settings
-- **`.env`** - Environment variables (API keys, paths)
-
-### Try It Locally
-
-```bash
-curl -X POST http://localhost:3000/api/generate-video \
-  -H "Content-Type: application/json" \
-  -d '{"topic":"Quantum Entanglement","description":"Explain how observation collapses the shared state."}'
-```
-
-The frontend includes a demo form (see "AI Storyboard Demo") that calls this endpoint and lists the generated frames and assets.
-
-### Render a Video
-
-#### Method 1: Using the render script directly
-
-```bash
-# Using ts-node
-ts-node render/index.ts templates/promo-01.json inputs/promo-01-input.json output/video.mp4
-
-# With custom options
-ts-node render/index.ts templates/promo-01.json inputs/promo-01-input.json output/video.mp4 30 1920 1080 300
-
-# Educational sample (text-to-video)
-ts-node render/index.ts templates/education.json inputs/education-sample.json output/education.mp4 30 1920 1080 600
-```
-
-#### Method 2: Using the programmatic API
-
-```typescript
-import {renderTemplateToMp4} from './render/index';
-
-await renderTemplateToMp4({
-  templatePath: 'templates/promo-01.json',
-  inputPath: 'inputs/promo-01-input.json',
-  outPath: 'output/video.mp4',
-  fps: 30,
-  width: 1920,
-  height: 1080,
-  duration: 300
-});
-```
-
-### Preview Script
-
-Render a low-resolution preview for testing:
-```bash
-npm run preview
-```
-
-This will create a 360p video at `output/preview-360p.mp4`.
-
-## Template Format
-
-Templates are JSON files that define the video structure:
-
+**Response:**
 ```json
 {
-  "timeline": {
-    "duration": 300,  // Total frames
-    "fps": 30         // Optional, defaults to 30
-  },
-  "tracks": [
+  "jobId": "550e8400-e29b-41d4-a716-446655440000",
+  "title": "Photosynthesis Explained",
+  "videoUrl": "/output/ai-storyboard-1234567890.mp4",
+  "frames": [
     {
-      "type": "background",
-      "src": "{{backgroundImage}}",
-      "startFrame": 0,
-      "endFrame": 300,
-      "style": {
-        "objectFit": "cover"
-      }
-    },
-    {
-      "type": "text",
-      "content": "{{title}}",
-      "style": {
-        "fontSize": 72,
-        "color": "#ffffff",
-        "textAlign": "center",
-        "x": 960,
-        "y": 300
-      },
-      "animation": {
-        "type": "fade-in",
-        "duration": 1.0,
-        "delay": 0.5
-      },
-      "startFrame": 30,
-      "endFrame": 150
+      "id": "frame_1",
+      "type": "whiteboard_diagram",
+      "heading": "Introduction to Photosynthesis",
+      "duration": 5,
+      "imageUrl": "/assets/gemini-images/...",
+      "voiceoverUrl": "/assets/voiceovers/..."
     }
   ]
 }
 ```
 
-Key notes:
-- `background.src` accepts HTTPS image/video URLs, `data:` URIs, solid colors (for example, `#0ea5e9`), or CSS gradients (for example, `linear-gradient(135deg, #1f2937 0%, #312e81 100%)`).
-- `style` mirrors CSS properties such as `fontSize`, `color`, `x`/`y` positions, `anchor` (`"center"` or `"top-left"`), `padding`, `borderRadius`, and more.
+### 2. Create a Pen Sketch Animation
 
-### Track Types
+#### Via API:
+```bash
+curl -X POST http://localhost:3000/api/pen-sketch/animate \
+  -F "images=@my-image.png" \
+  -F "duration=8" \
+  -F "frameRate=25" \
+  -F "videoWidth=1920" \
+  -F "videoHeight=1080"
+```
 
-#### Background Track
-- `type`: `"background"`
-- `src`: Image or video URL (supports placeholders)
-- `startFrame`: Frame when track starts
-- `endFrame`: Frame when track ends
-- `style.objectFit`: `"contain"`, `"cover"`, or `"fill"`
-
-#### Text Track
-- `type`: `"text"`
-- `content`: Text content (supports placeholders)
-- `style`: Font size, family, color, position, alignment
-- `animation`: Optional animation configuration
-- `startFrame` / `endFrame`: Frame range
-
-#### Image Track
-- `type`: `"image"`
-- `src`: Image URL (supports placeholders)
-- `style`: Position (x, y), dimensions (width, height), objectFit
-- `animation`: Optional animation configuration
-- `startFrame` / `endFrame`: Frame range
-
-#### Voiceover Track
-- `type`: `"voiceover"`
-- `src`: Audio URL (supports placeholders)
-- `startFrame` / `endFrame`: Frame range
-- `volume`: Optional gain (0–1, default: 1.0)
-
-### Animations
-
-Available animation types:
-- `fade-in`: Fades in from opacity 0 to 1
-- `slide`: Slides in from a direction
-
-Animation properties:
-- `type`: `"fade-in"` or `"slide"`
-- `duration`: Duration in seconds
-- `delay`: Delay before animation starts (seconds)
-- `from`: For slide animations: `"left"`, `"right"`, `"top"`, or `"bottom"`
-
-## Input Format
-
-Input files provide values for placeholders:
-
+**Response:**
 ```json
 {
-  "title": "Welcome to Our Platform",
-  "subtitle": "Transform your workflow",
-  "backgroundImage": "https://example.com/bg.jpg",
-  "logoImage": "https://example.com/logo.png",
-  "voiceoverAudio": "https://example.com/audio.mp3"
+  "jobId": "pen-sketch-1234567890",
+  "status": "completed",
+  "videoUrl": "/output/pen-sketch/pen-sketch-1234567890.mp4"
 }
 ```
 
-All placeholders in the template must be present in the input file, or the render will fail with a validation error.
+### 3. Use the Showcase Gallery
 
-## API Reference
+The showcase gallery automatically displays videos from `public/assets/showcase-videos/`:
 
-### `renderTemplateToMp4(options)`
-
-Renders a template to an MP4 file.
-
-**Parameters:**
-- `templatePath` (string): Path to template JSON file
-- `inputPath` (string): Path to input JSON file
-- `outPath` (string): Output MP4 file path
-- `fps` (number, optional): Frames per second (default: 30)
-- `width` (number, optional): Video width in pixels (default: 1920)
-- `height` (number, optional): Video height in pixels (default: 1080)
-- `duration` (number, optional): Duration in frames (default: from template)
-
-**Returns:** Promise that resolves when rendering is complete
-
-**Throws:** Error if template/input files are invalid or placeholders are missing
-
-## Examples
-
-### Example 1: Basic Render
-
+1. Add MP4 files to `public/assets/showcase-videos/`
+2. Run the auto-generate script:
 ```bash
-npm install
-npm run build
-ts-node render/index.ts templates/promo-01.json inputs/promo-01-input.json output/promo.mp4
+node scripts/auto-generate-showcase.js
 ```
+3. Refresh the frontend - videos appear automatically!
 
-### Example 2: Custom Resolution
+**Generated assets:**
+- GIFs for preview thumbnails
+- JPG thumbnails
+- `showcase-metadata.json` with video info
 
-```bash
-ts-node render/index.ts templates/promo-01.json inputs/promo-01-input.json output/promo-720p.mp4 30 1280 720
-```
+---
 
-### Example 3: Programmatic Usage
+## 📡 API Documentation
 
-```typescript
-import {renderTemplateToMp4} from './render/index';
-import * as path from 'path';
+### Video Generation
 
-async function generateVideo() {
-  await renderTemplateToMp4({
-    templatePath: path.join(__dirname, 'templates/promo-01.json'),
-    inputPath: path.join(__dirname, 'inputs/promo-01-input.json'),
-    outPath: path.join(__dirname, 'output/generated.mp4'),
-    fps: 30,
-    width: 1920,
-    height: 1080,
-  });
-  
-  console.log('Video generated successfully!');
+#### `POST /api/generate-video`
+
+Generate a complete AI storyboard video.
+
+**Request Body:**
+```json
+{
+  "topic": "string (required)",
+  "description": "string (optional)"
 }
-
-generateVideo().catch(console.error);
 ```
 
-## Validation
+**Response:**
+```json
+{
+  "jobId": "string",
+  "title": "string",
+  "videoUrl": "string",
+  "frames": [
+    {
+      "id": "string",
+      "type": "whiteboard_diagram|motion_scene",
+      "heading": "string",
+      "duration": "number",
+      "imageUrl": "string",
+      "voiceoverUrl": "string",
+      "voiceoverScript": "string"
+    }
+  ]
+}
+```
 
-The render script validates:
-- Template and input files exist and are valid JSON
-- All placeholders in the template have corresponding values in the input
-- Helpful error messages for missing placeholders
+**Status Codes:**
+- `200` - Success
+- `400` - Invalid request (missing topic)
+- `500` - Server error
 
-## Notes
+### Pen Sketch Animation
 
-- Video and image URLs can be local paths or remote URLs
-- Voiceover audio URLs are supported (MP3, WAV, M4A); remote assets are downloaded and cached per job
-- Frame-accurate timing ensures precise track positioning
-- All styling uses inline styles for maximum control
-- The composition ships with transcript support—pass a transcript string when queuing a job to have it uploaded alongside the rendered video
+#### `POST /api/pen-sketch/animate`
 
-## Troubleshooting
+Create a whiteboard-style animation from an image.
 
-**Error: "Missing required placeholders"**
-- Ensure all `{{placeholder}}` values in your template have corresponding keys in the input JSON
+**Request (Multipart Form):**
+```
+images: File (required)
+duration: number (default: 5)
+frameRate: number (default: 25)
+videoWidth: number (default: 1920)
+videoHeight: number (default: 1080)
+voiceover: File (optional)
+```
 
-**Error: "Failed to parse template file"**
-- Check that your JSON is valid (use a JSON validator)
+**Response:**
+```json
+{
+  "jobId": "string",
+  "status": "completed|processing|failed",
+  "videoUrl": "string",
+  "message": "string"
+}
+```
 
-**Error: "Symbol not found: (_AVCaptureDeviceTypeDeskViewCamera)" or FFmpeg errors**
-- This is a known macOS compatibility issue with Remotion's bundled FFmpeg (even when rendering video-only)
-- **Primary Workarounds (in order):**
-  1. **Upgrade Remotion binaries:** `npm update @remotion/renderer @remotion/bundler @remotion/cli remotion`
-  2. **Point Remotion to system FFmpeg:** install FFmpeg via Homebrew and set `FFMPEG_BINARY` / `FFPROBE_BINARY`
-  3. **Strip silent-audio arguments (dev quick-fix):** set `STRIP_AVFOUNDATION_ARGS=true` when running the worker/API to remove `-f lavfi -i anullsrc=...` from Remotion's FFmpeg command (uses `ffmpegOverride`, handy when testing locally without audio)
-  4. **Render inside Docker/Linux:** run the worker in a Linux container or remote environment
+### Health Check
 
-**Video not rendering**
-- Verify all asset URLs are accessible (test URLs in browser first)
-- Use reliable image hosting services (Unsplash, Picsum, etc.) instead of placeholder services
-- Check that file paths are correct (use absolute paths if needed)
-- Ensure Remotion is properly bundled (`npm run build`)
-- Empty audio/image sources are automatically skipped (won't cause errors)
-- Provide valid HTTPS audio URLs for voiceover tracks; if audio fails to download the track is removed before rendering
+#### `GET /health`
 
-## License
+Check server status.
 
-MIT
+**Response:**
+```json
+{
+  "status": "ok",
+  "timestamp": "2025-11-21T12:00:00.000Z",
+  "service": "video-generation-api"
+}
+```
 
+---
+
+## 🧩 Components
+
+### Frontend Components
+
+#### `GenerateVideoDemo.tsx`
+Main video generation interface with form inputs, voice recording, and progress display.
+
+**Key Features:**
+- Voice input with speech recognition
+- Real-time form validation
+- WebSocket progress integration
+- Confetti celebration on completion
+- Auto-scroll to video player
+
+#### `ShowcaseGallery.tsx`
+Responsive video gallery with playback controls.
+
+**Key Features:**
+- 2x2 grid (1 column on mobile)
+- Skeleton loading states
+- Play/pause/volume controls
+- Fullscreen modal player
+- Download functionality
+- Auto-pause other videos
+
+#### `VideoGenerationProgress.tsx`
+Real-time progress indicator with WebSocket updates.
+
+**Phases:**
+- 🧠 **Planning** (0-20%) - AI creates video structure
+- 🎨 **Generating Images** (20-70%) - Creating visuals
+- 🎙️ **Creating Voiceover** (70-75%) - Generating audio
+- 🎬 **Rendering Video** (75-100%) - Final compilation
+
+#### `Confetti.tsx`
+Celebration animation component.
+
+**Features:**
+- 50 animated particles
+- Random colors and delays
+- Falls from top to bottom with rotation
+- Auto-disappears after duration
+
+#### `SkeletonLoader.tsx`
+Loading placeholder with shimmer effect.
+
+**Features:**
+- Matches gallery layout
+- Smooth shimmer animation
+- Responsive grid
+
+### Backend Services
+
+#### `gemini-structured.ts`
+Generates structured JSON video plans using Gemini AI.
+
+**Key Functions:**
+- `generateStructuredJSON()` - Creates video storyboard
+- Schema validation for frame types
+- Spelling enhancement
+- Error handling
+
+#### `remotion-ai-renderer.ts`
+Renders videos using Remotion.
+
+**Key Functions:**
+- `renderStoryboardVideo()` - Main rendering function
+- Frame composition
+- Audio merging
+- Subtitle overlay
+
+#### `websocket.ts`
+WebSocket server for real-time updates.
+
+**Key Functions:**
+- `broadcast()` - Send to all clients
+- Connection management
+- Job subscription
+
+---
+
+## 📊 WebSocket Progress
+
+### Connection
+
+```javascript
+const ws = new WebSocket('ws://localhost:3001');
+
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    type: 'subscribe',
+    jobId: 'your-job-id'
+  }));
+};
+```
+
+### Message Types
+
+#### Progress Update
+```json
+{
+  "type": "progress",
+  "jobId": "string",
+  "phase": "planning|images|voiceover|rendering",
+  "percentage": 45,
+  "message": "Processing frame 2 of 5...",
+  "step": 2,
+  "totalSteps": 5
+}
+```
+
+#### Completion
+```json
+{
+  "type": "complete",
+  "jobId": "string",
+  "videoUrl": "/output/video.mp4"
+}
+```
+
+#### Error
+```json
+{
+  "type": "error",
+  "jobId": "string",
+  "message": "Error description"
+}
+```
+
+See [WEBSOCKET-PROGRESS.md](docs/WEBSOCKET-PROGRESS.md) for detailed documentation.
+
+---
+
+## 🖊️ Pen Sketch Animation
+
+### How It Works
+
+1. **Preprocessing**:
+   - Non-local means denoising
+   - Bilateral filtering
+   - CLAHE contrast enhancement
+
+2. **Outline Extraction**:
+   - Canny edge detection (70/180 thresholds)
+   - Morphological closing
+   - Contour approximation
+
+3. **Color Region Detection**:
+   - Otsu thresholding
+   - Contour detection
+   - Area filtering (>100px²)
+
+4. **Two-Pass Animation**:
+   - **Pass 1**: Draw black outlines (top-to-bottom)
+   - **Pass 2**: Fill color regions (top-to-bottom)
+   - **Pass 3**: Hold complete image
+
+5. **FFmpeg Encoding**:
+   - H.264 codec
+   - CRF 23 (good quality)
+   - Fast preset
+
+### Python Script
+
+```bash
+python sketch_animate_whiteboard.py \
+  --input image.png \
+  --output animation.mp4 \
+  --duration 8 \
+  --fps 25 \
+  --width 1920 \
+  --height 1080
+```
+
+See [README-PEN-SKETCH-SETUP.md](docs/README-PEN-SKETCH-SETUP.md) for setup instructions.
+
+---
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+#### 1. Video not playing in UI
+
+**Problem**: Video URL is relative, causing CORS issues.
+
+**Solution**: 
+- Ensure Vite proxy is configured for `/output`
+- Restart frontend dev server after config changes
+```bash
+cd frontend
+npm run dev
+```
+
+#### 2. WebSocket not connecting
+
+**Problem**: WebSocket server not running on port 3001.
+
+**Solution**:
+- Check if backend server is running
+- Verify `WEBSOCKET_PORT` in `.env`
+- Check firewall/antivirus blocking port 3001
+
+#### 3. Pen sketch animation fails
+
+**Problem**: Python dependencies not installed.
+
+**Solution**:
+```bash
+pip install opencv-python numpy pillow
+# Windows users: ensure numpy>=2.0.0 for Python 3.14+
+```
+
+#### 4. FFmpeg not found
+
+**Problem**: FFmpeg not in PATH or `node_modules`.
+
+**Solution**:
+- Install `ffmpeg-static`: `npm install ffmpeg-static`
+- Or install FFmpeg globally:
+  - **Windows**: Download from [ffmpeg.org](https://ffmpeg.org/download.html)
+  - **Mac**: `brew install ffmpeg`
+  - **Linux**: `sudo apt install ffmpeg`
+
+#### 5. Gemini API quota exceeded
+
+**Problem**: Too many API calls.
+
+**Solution**:
+- Use `FIXED_TEST_IMAGES` mode for development
+- Implement caching for generated images
+- Upgrade Gemini API plan
+
+#### 6. Remotion rendering timeout
+
+**Problem**: Video rendering takes too long.
+
+**Solution**:
+- Reduce video duration
+- Decrease frame count
+- Use faster Remotion codec settings
+- Increase timeout in `remotion-ai-renderer.ts`
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how you can help:
+
+### Development Workflow
+
+1. **Fork the repository**
+2. **Create a feature branch**
+```bash
+git checkout -b feature/amazing-feature
+```
+
+3. **Make your changes**
+4. **Test thoroughly**
+```bash
+npm run test  # Run tests
+npm run lint  # Check code quality
+```
+
+5. **Commit with clear messages**
+```bash
+git commit -m "feat: Add amazing feature"
+```
+
+6. **Push and create a Pull Request**
+```bash
+git push origin feature/amazing-feature
+```
+
+### Code Style
+
+- **TypeScript** for all new code
+- **ESLint** for linting
+- **Prettier** for formatting
+- **Conventional Commits** for commit messages
+
+### Areas to Contribute
+
+- 🎨 **UI/UX improvements**
+- 🐛 **Bug fixes**
+- 📚 **Documentation**
+- ✨ **New features**:
+  - More animation styles
+  - Additional AI models
+  - Video templates
+  - Export formats
+- 🧪 **Tests**
+- 🌐 **Internationalization**
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- **Google Gemini AI** for text and image generation
+- **Deepgram** for text-to-speech synthesis
+- **Remotion** for React-based video rendering
+- **FFmpeg** for video processing
+- **OpenCV** for image processing
+
+---
+
+## 📞 Support
+
+- **Documentation**: [docs/](docs/)
+- **Issues**: [GitHub Issues](https://github.com/yourusername/video-generation-studio/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/yourusername/video-generation-studio/discussions)
+
+---
+
+## 🗺️ Roadmap
+
+### v1.0 (Current)
+- ✅ AI storyboard generation
+- ✅ Pen sketch animation
+- ✅ WebSocket progress updates
+- ✅ Showcase gallery
+- ✅ Mobile responsive UI
+
+### v1.1 (Planned)
+- [ ] Multiple video templates
+- [ ] User accounts and video history
+- [ ] Advanced editing interface
+- [ ] Batch video generation
+- [ ] Custom voiceover uploads
+
+### v2.0 (Future)
+- [ ] Real-time collaborative editing
+- [ ] AI video translation
+- [ ] Advanced animation presets
+- [ ] Video effects library
+- [ ] Cloud rendering support
+
+---
+
+## 🌟 Star History
+
+If you find this project useful, please consider giving it a star! ⭐
+
+---
+
+**Built with ❤️ using React, Node.js, and AI**

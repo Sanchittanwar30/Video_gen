@@ -1,77 +1,36 @@
-import GenerateVideoDemo from './components/GenerateVideoDemo';
-// import PenSketchTest from './components/PenSketchTest';
-import ShowcaseGallery from './components/ShowcaseGallery';
-import './App.css';
+import { useState } from 'react';
+import DashboardLayout from './components/DashboardLayout';
+import HomePage from './components/HomePage';
+import GenerateVideo from './components/GenerateVideo';
+import Diagrams from './components/Diagrams';
+import VideoLibrary from './components/VideoLibrary';
+import PhotoLibrary from './components/PhotoLibrary';
 
 function App() {
+  const [currentPage, setCurrentPage] = useState('home');
+
+  const renderPage = () => {
+    switch (currentPage) {
+      case 'home':
+        return <HomePage onNavigate={setCurrentPage} />;
+      case 'generate':
+        return <GenerateVideo />;
+      case 'diagrams':
+        return <Diagrams />;
+      case 'videos':
+        return <VideoLibrary />;
+      case 'photos':
+        return <PhotoLibrary />;
+      default:
+        return <HomePage onNavigate={setCurrentPage} />;
+    }
+  };
+
   return (
-    <div className="app">
-      <div className="container">
-        <header className="header">
-          <h1>🎬 Video Generation Studio</h1>
-          <p>Transform your ideas into professional videos with AI-powered visuals and animations</p>
-        </header>
-        
-        {/* Showcase Gallery - Hero Section */}
-        <ShowcaseGallery />
-        
-        {/* AI Storyboard Generator */}
-        <div style={{ marginTop: '60px' }}>
-          <div style={{ 
-            textAlign: 'center', 
-            marginBottom: '30px',
-            padding: '20px',
-            background: 'var(--bg-card)',
-            borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--border-primary)',
-          }}>
-            <h2 style={{ 
-              fontSize: '28px', 
-              marginBottom: '10px',
-              color: 'var(--text-primary)',
-            }}>
-              🤖 AI Storyboard Generator
-            </h2>
-            <p style={{ 
-              color: 'var(--text-secondary)',
-              fontSize: '16px',
-            }}>
-              Generate educational videos from any topic - AI creates visuals, voiceovers, and animations
-            </p>
-          </div>
-          <GenerateVideoDemo />
-        </div>
-        
-        {/* Pen Sketch Animation - Temporarily Hidden */}
-        {/* <div className="pen-sketch-section" style={{ marginTop: '60px' }}>
-          <div style={{ 
-            textAlign: 'center', 
-            marginBottom: '30px',
-            padding: '20px',
-            background: 'var(--bg-card)',
-            borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--border-primary)',
-          }}>
-            <h2 className="pen-sketch-title" style={{ 
-              fontSize: '28px', 
-              marginBottom: '10px',
-              color: 'var(--text-primary)',
-            }}>
-              🖊️ Pen Sketch Animation
-            </h2>
-            <p className="pen-sketch-description" style={{ 
-              color: 'var(--text-secondary)',
-              fontSize: '16px',
-            }}>
-              Transform images into hand-drawn whiteboard animations with smooth stroke-by-stroke drawing
-            </p>
-          </div>
-          <PenSketchTest />
-        </div> */}
-      </div>
-    </div>
+    <DashboardLayout currentPage={currentPage} onNavigate={setCurrentPage}>
+      {renderPage()}
+    </DashboardLayout>
   );
 }
 
 export default App;
-

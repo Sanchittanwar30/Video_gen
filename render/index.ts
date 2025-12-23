@@ -19,6 +19,7 @@ export interface RenderTemplateOptions {
 	height?: number;
 	duration?: number;
 	lowResolution?: boolean; // Use lower resolution to avoid FFmpeg issues
+	highQuality?: boolean; // Use higher quality settings (CRF 18, 320k audio) matching AI storyboard
 }
 
 /**
@@ -212,6 +213,7 @@ export async function renderTemplateToMp4(
 		height: requestedHeight = 1080,
 		duration,
 		lowResolution = false,
+		highQuality = false, // Default to standard quality, enable for AI storyboard quality
 	} = options;
 
 	// Use lower resolution if requested (helps avoid FFmpeg issues on macOS)
@@ -376,10 +378,11 @@ export async function renderTemplateToMp4(
 				console.log(`  Progress: ${progress.toFixed(1)}%`);
 			}
 		},
-		// Use lower quality to reduce processing load
-		crf: 23,
-		videoBitrate: null,
-		audioBitrate: null,
+		// Use high quality settings if requested (matching AI storyboard), otherwise standard quality
+		crf: highQuality ? 18 : 23, // CRF 18 = higher quality (AI storyboard), CRF 23 = standard quality
+		videoBitrate: null, // Use CRF instead of bitrate for quality control
+		audioBitrate: highQuality ? '320k' : null, // High quality audio for AI storyboard quality
+		audioCodec: highQuality ? 'aac' as const : undefined, // Explicit AAC codec for high quality
 		omitAudio: !hasAudioTracks,
 		timeoutInMilliseconds: browserTimeout,
 		browserExecutable: browserExecutable ?? undefined,

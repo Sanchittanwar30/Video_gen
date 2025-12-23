@@ -1,6 +1,7 @@
 import {useState, useRef, useEffect} from 'react';
 import {generateVideoFromAI, GenerateVideoFrame} from '../api/generateVideoClient';
 import VideoGenerationProgress from './VideoGenerationProgress';
+import Confetti from './Confetti';
 import './GenerateVideoDemo.css';
 
 // TypeScript types for Speech Recognition API
@@ -71,6 +72,7 @@ export function GenerateVideoDemo() {
 	const [jobId, setJobId] = useState<string | null>(null);
 	const [title, setTitle] = useState<string | null>(null);
 	const [videoUrl, setVideoUrl] = useState<string | null>(null);
+	const [showConfetti, setShowConfetti] = useState(false);
 	
 	// Debug: Log state changes
 	useEffect(() => {
@@ -219,6 +221,13 @@ export function GenerateVideoDemo() {
 			console.log('📹 Setting video URL:', url);
 			setVideoUrl(url);
 			setState('success');
+			setShowConfetti(true);
+			
+			// Reset confetti after duration
+			setTimeout(() => {
+				setShowConfetti(false);
+			}, 4000);
+			
 			// Scroll to video
 			setTimeout(() => {
 				const videoPreview = document.querySelector('.generate-video-preview');
@@ -242,6 +251,8 @@ export function GenerateVideoDemo() {
 
 	return (
 		<section className="generate-video-demo">
+			{showConfetti && <Confetti duration={4000} />}
+			
 			<header>
 				<h2>AI Storyboard Demo</h2>
 				<p>
